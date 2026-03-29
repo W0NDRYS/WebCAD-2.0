@@ -1,4 +1,4 @@
-import React, { useRef } from "react";
+import React, { useEffect, useRef } from "react";
 import { Grid3X3 } from "lucide-react";
 import { styles, SVG_H, SVG_W } from "../constants";
 import { useCad } from "../context/CadContext";
@@ -7,12 +7,15 @@ import DrawingSvg from "./DrawingSvg";
 const MIN_VIEW_W = 40;
 const MAX_VIEW_W = SVG_W * 20;
 const ZOOM_STEP = 0.12;
+const VIEW_LERP = 0.22;
 
 export default function CanvasView() {
   const {
     svgRef,
     viewport,
     setViewport,
+    renderViewport,
+    setRenderViewport,
     handlePointerDown,
     handlePointerMove,
     handlePointerUp,
@@ -21,7 +24,7 @@ export default function CanvasView() {
 
   const isMiddlePanningRef = useRef(false);
   const middlePanStartRef = useRef(null);
-  const rafRef = useRef(null);
+  const animationFrameRef = useRef(null);
 
   function clampViewport(next) {
     const width = Math.max(MIN_VIEW_W, Math.min(MAX_VIEW_W, next.width));
@@ -39,7 +42,7 @@ export default function CanvasView() {
     return svgRef.current;
   }
 
-  function svgPointFromClient(clientX, clientY) {
+  function svgPointFromClient(clientX, clientY, activeViewport = renderViewport) {
     const svg = getSvgElement();
     if (!svg) return { x: 0, y: 0 };
 
@@ -50,39 +53,71 @@ export default function CanvasView() {
     const relY = (clientY - rect.top) / rect.height;
 
     return {
-      x: viewport.x + relX * viewport.width,
-      y: viewport.y + relY * viewport.height,
+      x: activeViewport.x + relX * activeViewport.width,
+      y: activeViewport.y + relY * activeViewport.height,
     };
   }
 
-  function queueViewportUpdate(updater) {
-    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+  useEffect(() => {
+    let rafId = 0;
 
-    rafRef.current = requestAnimationFrame(() => {
-      setViewport((prev) => clampViewport(updater(prev)));
-    });
-  }
+    function animate() {
+      setRenderViewport((prev) => {
+        const dx = viewport.x - prev.x;
+        const dy = viewport.y - prev.y;
+        const dw = viewport.width - prev.width;
+        const dh = viewport.height - prev.height;
+
+        const closeEnough =
+          Math.abs(dx) < 0.01 &&
+          Math.abs(dy) < 0.01 &&
+          Math.abs(dw) < 0.01 &&
+          Math.abs(dh) < 0.01;
+
+        if (closeEnough) {
+          return viewport;
+        }
+
+        return {
+          x: prev.x + dx * VIEW_LERP,
+          y: prev.y + dy * VIEW_LERP,
+          width: prev.width + dw * VIEW_LERP,
+          height: prev.height + dh * VIEW_LERP,
+        };
+      });
+
+      rafId = requestAnimationFrame(animate);
+      animationFrameRef.current = rafId;
+    }
+
+    rafId = requestAnimationFrame(animate);
+    animationFrameRef.current = rafId;
+
+    return () => {
+      cancelAnimationFrame(rafId);
+    };
+  }, [viewport, setRenderViewport]);
 
   function onWheel(e) {
     e.preventDefault();
 
-    const mouse = svgPointFromClient(e.clientX, e.clientY);
+    const mouse = svgPointFromClient(e.clientX, e.clientY, renderViewport);
     const direction = e.deltaY > 0 ? 1 : -1;
     const zoomFactor = Math.exp(direction * ZOOM_STEP);
 
-    queueViewportUpdate((prev) => {
+    setViewport((prev) => {
       const nextWidth = prev.width * zoomFactor;
       const nextHeight = prev.height * zoomFactor;
 
       const relX = (mouse.x - prev.x) / prev.width;
       const relY = (mouse.y - prev.y) / prev.height;
 
-      return {
+      return clampViewport({
         x: mouse.x - relX * nextWidth,
         y: mouse.y - relY * nextHeight,
         width: nextWidth,
         height: nextHeight,
-      };
+      });
     });
   }
 
@@ -119,7 +154,7 @@ export default function CanvasView() {
       const dxPx = e.clientX - start.clientX;
       const dyPx = e.clientY - start.clientY;
 
-      queueViewportUpdate((prev) => ({
+      setViewport((prev) => ({
         ...prev,
         x: start.viewportX - dxPx * start.worldPerPixelX,
         y: start.viewportY - dyPx * start.worldPerPixelY,
@@ -164,7 +199,7 @@ export default function CanvasView() {
             <div style={styles.toolbarMeta}>
               <Grid3X3 size={16} />
               <span>
-                {Math.round(viewport.width)} × {Math.round(viewport.height)} view
+                {Math.round(renderViewport.width)} × {Math.round(renderViewport.height)} view
               </span>
             </div>
 
@@ -194,7 +229,7 @@ export default function CanvasView() {
         >
           <svg
             ref={svgRef}
-            viewBox={`${viewport.x} ${viewport.y} ${viewport.width} ${viewport.height}`}
+            viewBox={`${renderViewport.x} ${renderViewport.y} ${renderViewport.width} ${renderViewport.height}`}
             preserveAspectRatio="xMidYMid meet"
             style={{
               width: "100%",

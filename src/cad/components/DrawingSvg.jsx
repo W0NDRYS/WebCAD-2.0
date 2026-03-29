@@ -1,5 +1,5 @@
 import React from "react";
-import { HANDLE_R, SVG_H, SVG_W } from "../constants";
+import { SVG_H, SVG_W } from "../constants";
 import { useCad } from "../context/CadContext";
 import {
   getNearbySnapPoints,
@@ -117,12 +117,26 @@ export default function DrawingSvg() {
     interaction,
     pointer,
     snapTarget,
+    renderViewport,
   } = useCad();
 
   const selectedShapes = shapes.filter((s) => selectedIds.includes(s.id));
   const nearbySnapPoints = getNearbySnapPoints(shapes, pointer, {
     maxDistance: 18,
   });
+
+  // konstantní vizuální velikosti v "world" jednotkách podle aktuálního render viewportu
+  const worldPerScreenPx = renderViewport.width / 1200;
+  const handleRadius = 8 * worldPerScreenPx;
+  const smallPointRadius = 3.5 * worldPerScreenPx;
+  const midPointRadius = 4.5 * worldPerScreenPx;
+  const snapOuterRadius = 10 * worldPerScreenPx;
+  const moveStartRadius = 6 * worldPerScreenPx;
+  const moveCurrentRadius = 5 * worldPerScreenPx;
+  const tooltipOffset = 12 * worldPerScreenPx;
+  const tooltipHeight = 20 * worldPerScreenPx;
+  const tooltipTextSize = 12 * worldPerScreenPx;
+  const tooltipPadding = 8 * worldPerScreenPx;
 
   function renderMultiHandles() {
     if (tool !== "select") return null;
@@ -136,7 +150,7 @@ export default function DrawingSvg() {
           key={`${line.id}-start`}
           cx={line.x1}
           cy={line.y1}
-          r={HANDLE_R}
+          r={handleRadius}
           fill="#ffffff"
           stroke="#2563eb"
           strokeWidth="2"
@@ -148,7 +162,7 @@ export default function DrawingSvg() {
           key={`${line.id}-end`}
           cx={line.x2}
           cy={line.y2}
-          r={HANDLE_R}
+          r={handleRadius}
           fill="#ffffff"
           stroke="#2563eb"
           strokeWidth="2"
@@ -164,7 +178,7 @@ export default function DrawingSvg() {
             key={`poly-${index}`}
             cx={p.x}
             cy={p.y}
-            r={HANDLE_R}
+            r={handleRadius}
             fill="#ffffff"
             stroke="#2563eb"
             strokeWidth="2"
@@ -215,7 +229,7 @@ export default function DrawingSvg() {
         <circle
           cx={interaction.point.x}
           cy={interaction.point.y}
-          r={6}
+          r={moveStartRadius}
           fill="#ffffff"
           stroke="#ef4444"
           strokeWidth="2"
@@ -236,7 +250,7 @@ export default function DrawingSvg() {
         <circle
           cx={pointer.x}
           cy={pointer.y}
-          r={5}
+          r={moveCurrentRadius}
           fill="#ef4444"
           vectorEffect="non-scaling-stroke"
         />
@@ -252,7 +266,7 @@ export default function DrawingSvg() {
         key={`near-snap-${i}-${p.shapeId}-${p.ref ?? "r"}`}
         cx={p.x}
         cy={p.y}
-        r={p.role === "midpoint" ? 4 : 3}
+        r={p.role === "midpoint" ? midPointRadius : smallPointRadius}
         fill="#ffffff"
         stroke="#94a3b8"
         strokeWidth="1.5"
@@ -265,12 +279,18 @@ export default function DrawingSvg() {
   function renderSnapTarget() {
     if (!snapTarget) return null;
 
+    const label = getSnapLabel(snapTarget.role);
+    const tooltipWidth = Math.max(
+      56 * worldPerScreenPx,
+      label.length * 7 * worldPerScreenPx
+    );
+
     return (
       <>
         <circle
           cx={snapTarget.x}
           cy={snapTarget.y}
-          r={10}
+          r={snapOuterRadius}
           fill="rgba(34,197,94,0.15)"
           stroke="#22c55e"
           strokeWidth="2"
@@ -279,28 +299,28 @@ export default function DrawingSvg() {
         <circle
           cx={snapTarget.x}
           cy={snapTarget.y}
-          r={snapTarget.role === "midpoint" ? 4 : 3}
+          r={snapTarget.role === "midpoint" ? midPointRadius : smallPointRadius}
           fill="#22c55e"
           vectorEffect="non-scaling-stroke"
         />
 
-        <g transform={`translate(${snapTarget.x + 12}, ${snapTarget.y - 12})`}>
+        <g transform={`translate(${snapTarget.x + tooltipOffset}, ${snapTarget.y - tooltipOffset})`}>
           <rect
             x="0"
-            y="-12"
-            width={Math.max(56, getSnapLabel(snapTarget.role).length * 7)}
-            height="20"
-            rx="6"
+            y={-tooltipHeight * 0.6}
+            width={tooltipWidth}
+            height={tooltipHeight}
+            rx={6 * worldPerScreenPx}
             fill="rgba(15,23,42,0.9)"
           />
           <text
-            x="8"
-            y="2"
-            fontSize="12"
+            x={tooltipPadding}
+            y={tooltipTextSize * 0.2}
+            fontSize={tooltipTextSize}
             fill="#ffffff"
             fontFamily="Arial, Helvetica, sans-serif"
           >
-            {getSnapLabel(snapTarget.role)}
+            {label}
           </text>
         </g>
       </>
