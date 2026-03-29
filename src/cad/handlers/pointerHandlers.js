@@ -1,4 +1,10 @@
 import { SVG_H, SVG_W } from "../constants";
+import {
+  boundsIntersect,
+  getShapeBounds,
+  isBoundsInside,
+  normalizeSelectionBox,
+} from "../utils/geometry";
 import { moveShape, updateShapeById } from "../utils/shapeMutations";
 import { snap } from "../utils/units";
 
@@ -21,6 +27,10 @@ export function createPointerHandlers(
     setInteraction,
     setPointer,
     setStatus,
+    setSelectedId,
+    setSelectedIds,
+    setSelectionBox,
+    selectionBox,
   } = state;
 
   const { pushHistory } = historyActions;
@@ -69,30 +79,45 @@ export function createPointerHandlers(
       if (tryStartHandleEdit(point)) return;
 
       const selected = selectAtPoint(point);
+
       if (selected) {
-        setInteraction((prev) => {
-          if (prev?.kind) return prev;
-          const hit = [...shapes].reverse().find((s) => {
-            if (s.type === "rect") {
-              const left = Math.min(s.x1, s.x2);
-              const top = Math.min(s.y1, s.y2);
-              const right = Math.max(s.x1, s.x2);
-              const bottom = Math.max(s.y1, s.y2);
-              return point.x >= left && point.x <= right && point.y >= top && point.y <= bottom;
-            }
-            return true;
-          });
-          return hit
-            ? {
-                kind: "move-preview",
-                point,
-                shapeId: hit.id,
-                startShapes: JSON.parse(JSON.stringify(shapes)),
-              }
-            : null;
+        const hit = [...shapes].reverse().find((s) => {
+          const b = getShapeBounds(s);
+          return (
+            point.x >= b.x1 &&
+            point.x <= b.x2 &&
+            point.y >= b.y1 &&
+            point.y <= b.y2
+          );
         });
-        setStatus("Přesun zahájen. Druhým klikem potvrď novou pozici.");
+
+        if (hit) {
+          setSelectedId(hit.id);
+          setSelectedIds([hit.id]);
+          setInteraction({
+            kind: "move-preview",
+            point,
+            shapeId: hit.id,
+            startShapes: JSON.parse(JSON.stringify(shapes)),
+          });
+          setStatus("Přesun zahájen. Druhým klikem potvrď novou pozici.");
+          return;
+        }
       }
+
+      setSelectedId(null);
+      setSelectedIds([]);
+      setSelectionBox({
+        x1: point.x,
+        y1: point.y,
+        x2: point.x,
+        y2: point.y,
+      });
+      setInteraction({
+        kind: "selection-box",
+        startPoint: point,
+      });
+      setStatus("Táhni výběr.");
       return;
     }
 
@@ -134,19 +159,17 @@ export function createPointerHandlers(
 
     if (!interaction) return;
 
-    if (interaction.kind === "move-preview") {
-      const dx = point.x - interaction.point.x;
-      const dy = point.y - interaction.point.y;
-
-      setShapes(
-        updateShapeById(interaction.startShapes, interaction.shapeId, (shape) =>
-          moveShape(shape, dx, dy)
-        )
-      );
+    if (interaction.kind === "selection-box") {
+      setSelectionBox({
+        x1: interaction.startPoint.x,
+        y1: interaction.startPoint.y,
+        x2: point.x,
+        y2: point.y,
+      });
       return;
     }
 
-    if (interaction.kind === "move") {
+    if (interaction.kind === "move-preview") {
       const dx = point.x - interaction.point.x;
       const dy = point.y - interaction.point.y;
 
@@ -188,6 +211,34 @@ export function createPointerHandlers(
   }
 
   function handlePointerUp() {
+    if (interaction?.kind === "selection-box" && selectionBox) {
+      const box = normalizeSelectionBox(selectionBox);
+
+      const hits = shapes
+        .filter((shape) => {
+          const bounds = getShapeBounds(shape);
+
+          if (box.leftToRight) {
+            return isBoundsInside(bounds, box);
+          }
+
+          return boundsIntersect(bounds, box);
+        })
+        .map((shape) => shape.id);
+
+      setSelectedIds(hits);
+      setSelectedId(hits.length === 1 ? hits[0] : null);
+      setSelectionBox(null);
+      setInteraction(null);
+
+      if (hits.length) {
+        setStatus(`Vybráno objektů: ${hits.length}`);
+      } else {
+        setStatus("Žádný objekt nevybrán.");
+      }
+      return;
+    }
+
     if (interaction?.kind === "move-preview") {
       return;
     }
@@ -200,7 +251,10 @@ export function createPointerHandlers(
       return;
     }
 
-    if (interaction?.kind === "line-handle" || interaction?.kind === "polyline-handle") {
+    if (
+      interaction?.kind === "line-handle" ||
+      interaction?.kind === "polyline-handle"
+    ) {
       if (JSON.stringify(interaction.startShapes) !== JSON.stringify(shapes)) {
         pushHistory(interaction.startShapes);
       }
