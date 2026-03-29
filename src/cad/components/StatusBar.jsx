@@ -1,6 +1,7 @@
 import React from "react";
 import { styles } from "../constants";
 import { useCad } from "../context/CadContext";
+import { getSnapLabel } from "../utils/geometry";
 import { mmToDisplay } from "../utils/units";
 
 export default function StatusBar() {
@@ -14,6 +15,7 @@ export default function StatusBar() {
     setCommandValue,
     applyCommandValue,
     commandInputRef,
+    snapTarget,
   } = useCad();
 
   const metricText = (() => {
@@ -51,6 +53,11 @@ export default function StatusBar() {
           {mmToDisplay(pointer.y, units)} {units}
         </span>
         {metricText ? <span><strong>{metricText}</strong></span> : null}
+        {snapTarget ? (
+          <span>
+            <strong>Snap:</strong> {getSnapLabel(snapTarget.role)}
+          </span>
+        ) : null}
       </div>
 
       <div style={styles.statusCommand}>

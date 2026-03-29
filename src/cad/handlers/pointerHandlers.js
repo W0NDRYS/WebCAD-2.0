@@ -2,6 +2,7 @@ import { SVG_H, SVG_W } from "../constants";
 import {
   boundsIntersect,
   findNearestSnapPoint,
+  findSharedNode,
   getShapeBounds,
   isBoundsInside,
   normalizeSelectionBox,
@@ -34,6 +35,8 @@ export function createPointerHandlers(
     setSelectionBox,
     selectionBox,
     setSnapTarget,
+    setDraft,
+    setPolylineDraft,
   } = state;
 
   const { pushHistory } = historyActions;
@@ -64,16 +67,11 @@ export function createPointerHandlers(
   }
 
   function getSnappedPoint(rawPoint) {
-    if (
-      interaction?.kind !== "line-handle" &&
-      interaction?.kind !== "polyline-handle"
-    ) {
-      setSnapTarget(null);
-      return rawPoint;
-    }
-
     const snapPoint = findNearestSnapPoint(shapes, rawPoint, {
-      excludeShapeId: interaction.shapeId,
+      excludeShapeId:
+        interaction?.kind === "line-handle" || interaction?.kind === "polyline-handle"
+          ? interaction.shapeId
+          : null,
       maxDistance: 16,
     });
 
@@ -100,7 +98,8 @@ export function createPointerHandlers(
 
     if (
       interaction.kind === "line-handle" ||
-      interaction.kind === "polyline-handle"
+      interaction.kind === "polyline-handle" ||
+      interaction.kind === "shared-node"
     ) {
       if (JSON.stringify(interaction.startShapes) !== JSON.stringify(shapes)) {
         pushHistory(interaction.startShapes);
@@ -114,29 +113,80 @@ export function createPointerHandlers(
     return false;
   }
 
+  function cancelCurrentInteraction() {
+    if (draft) {
+      setDraft(null);
+      setSnapTarget(null);
+      setStatus("Kreslení zrušeno.");
+      return true;
+    }
+
+    if (state.polylineDraft) {
+      setPolylineDraft(null);
+      setSnapTarget(null);
+      setStatus("Polyline zrušena.");
+      return true;
+    }
+
+    if (interaction?.startShapes) {
+      setShapes(interaction.startShapes);
+      setInteraction(null);
+      setSnapTarget(null);
+      setSelectionBox(null);
+      setStatus("Manipulace zrušena.");
+      return true;
+    }
+
+    if (interaction?.kind === "selection-box") {
+      setInteraction(null);
+      setSelectionBox(null);
+      setSnapTarget(null);
+      setStatus("Výběr zrušen.");
+      return true;
+    }
+
+    return false;
+  }
+
   function handlePointerDown(evt) {
-    const point = getPoint(evt);
+    const rawPoint = getPoint(evt);
+    const point = draft ? getSnappedPoint(rawPoint) : rawPoint;
     setPointer(point);
 
     if (tool === "select") {
       if (confirmCurrentInteraction()) return;
 
-      if (tryStartHandleEdit(point)) return;
+      const selectedShapes = shapes.filter((s) => selectedIds.includes(s.id));
+      const sharedNode = findSharedNode(selectedShapes, rawPoint, 12);
 
-      const hit = selectAtPoint(point);
+      if (sharedNode) {
+        setInteraction({
+          kind: "shared-node",
+          point: { x: sharedNode.x, y: sharedNode.y },
+          members: sharedNode.members,
+          startShapes: JSON.parse(JSON.stringify(shapes)),
+        });
+        setSnapTarget(sharedNode);
+        setStatus("Společný bod vybrán. Pohni myší a klikem potvrď.");
+        return;
+      }
+
+      if (tryStartHandleEdit(rawPoint)) return;
+
+      const hit = selectAtPoint(rawPoint);
       if (hit) return;
 
       setSelectedId(null);
       setSelectedIds([]);
       setSelectionBox({
-        x1: point.x,
-        y1: point.y,
-        x2: point.x,
-        y2: point.y,
+        x1: rawPoint.x,
+        y1: rawPoint.y,
+        x2: rawPoint.x,
+        y2: rawPoint.y,
       });
       setInteraction({
         kind: "selection-box",
-        startPoint: point,
+        startPoint: rawPoint,
       });
       setStatus("Táhni výběr.");
       return;
@@ -148,7 +198,7 @@ export function createPointerHandlers(
       if (selectedIds?.length > 0) {
         setInteraction({
           kind: "move-preview-group",
-          point,
+          point: rawPoint,
           shapeIds: [...selectedIds],
           startShapes: JSON.parse(JSON.stringify(shapes)),
         });
@@ -167,16 +217,16 @@ export function createPointerHandlers(
     }
 
     if (tool === "polyline") {
-      handlePolylineClick(point);
+      handlePolylineClick(getSnappedPoint(rawPoint));
       return;
     }
 
     if (tool === "line" || tool === "rect" || tool === "circle") {
       if (!draft) {
-        beginShape(point);
+        beginShape(getSnappedPoint(rawPoint));
         focusCommandInput?.();
       } else {
-        updateDraft(point);
+        updateDraft(getSnappedPoint(rawPoint));
         commitDraft();
       }
       return;
@@ -188,12 +238,24 @@ export function createPointerHandlers(
     setPointer(rawPoint);
 
     if (draft) {
-      updateDraft(rawPoint);
+      const point = getSnappedPoint(rawPoint);
+      setPointer(point);
+      updateDraft(point);
       return;
     }
 
     if (!interaction) {
-      setSnapTarget(null);
+      const selectedShapes = shapes.filter((s) => selectedIds.includes(s.id));
+      const sharedNode = findSharedNode(selectedShapes, rawPoint, 12);
+
+      if (sharedNode) {
+        setSnapTarget(sharedNode);
+      } else {
+        const hoverSnap = findNearestSnapPoint(shapes, rawPoint, {
+          maxDistance: 14,
+        });
+        setSnapTarget(hoverSnap || null);
+      }
       return;
     }
 
@@ -218,6 +280,38 @@ export function createPointerHandlers(
     }
 
     const point = getSnappedPoint(rawPoint);
+    setPointer(point);
+
+    if (interaction.kind === "shared-node") {
+      setShapes(
+        interaction.startShapes.map((shape) => {
+          const members = interaction.members.filter((m) => m.shapeId === shape.id);
+          if (!members.length) return shape;
+
+          const next = JSON.parse(JSON.stringify(shape));
+
+          for (const member of members) {
+            if (shape.type === "line") {
+              if (member.ref === "start") {
+                next.x1 = point.x;
+                next.y1 = point.y;
+              }
+              if (member.ref === "end") {
+                next.x2 = point.x;
+                next.y2 = point.y;
+              }
+            }
+
+            if (shape.type === "polyline") {
+              next.points[member.ref] = { x: point.x, y: point.y };
+            }
+          }
+
+          return next;
+        })
+      );
+      return;
+    }
 
     if (interaction.kind === "line-handle") {
       setShapes(
@@ -277,16 +371,10 @@ export function createPointerHandlers(
       return;
     }
 
-    if (interaction?.kind === "move-preview-group") {
-      return;
-    }
-
-    if (
-      interaction?.kind === "line-handle" ||
-      interaction?.kind === "polyline-handle"
-    ) {
-      return;
-    }
+    if (interaction?.kind === "move-preview-group") return;
+    if (interaction?.kind === "line-handle") return;
+    if (interaction?.kind === "polyline-handle") return;
+    if (interaction?.kind === "shared-node") return;
 
     setSnapTarget(null);
   }
@@ -301,5 +389,6 @@ export function createPointerHandlers(
     handlePointerUp,
     handleDoubleClick,
     confirmCurrentInteraction,
+    cancelCurrentInteraction,
   };
 }

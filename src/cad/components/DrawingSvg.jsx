@@ -109,47 +109,56 @@ export default function DrawingSvg() {
     snapTarget,
   } = useCad();
 
-  function renderHandles() {
-    if (!selectedShape || tool !== "select") return null;
+  const selectedShapes = shapes.filter((s) => selectedIds.includes(s.id));
 
-    if (selectedShape.type === "line") {
-      return (
-        <>
-          <circle
-            cx={selectedShape.x1}
-            cy={selectedShape.y1}
-            r={HANDLE_R}
-            fill="#ffffff"
-            stroke="#2563eb"
-            strokeWidth="2"
-          />
-          <circle
-            cx={selectedShape.x2}
-            cy={selectedShape.y2}
-            r={HANDLE_R}
-            fill="#ffffff"
-            stroke="#2563eb"
-            strokeWidth="2"
-          />
-        </>
-      );
-    }
+  function renderMultiHandles() {
+    if (tool !== "select") return null;
 
-    if (selectedShape.type === "polyline") {
-      return selectedShape.points.map((p, index) => (
+    const lineShapes = selectedShapes.filter((s) => s.type === "line");
+    const circles = [];
+
+    for (const line of lineShapes) {
+      circles.push(
         <circle
-          key={`h-${index}`}
-          cx={p.x}
-          cy={p.y}
+          key={`${line.id}-start`}
+          cx={line.x1}
+          cy={line.y1}
           r={HANDLE_R}
           fill="#ffffff"
           stroke="#2563eb"
           strokeWidth="2"
         />
-      ));
+      );
+      circles.push(
+        <circle
+          key={`${line.id}-end`}
+          cx={line.x2}
+          cy={line.y2}
+          r={HANDLE_R}
+          fill="#ffffff"
+          stroke="#2563eb"
+          strokeWidth="2"
+        />
+      );
     }
 
-    return null;
+    if (selectedShape?.type === "polyline") {
+      selectedShape.points.forEach((p, index) => {
+        circles.push(
+          <circle
+            key={`poly-${index}`}
+            cx={p.x}
+            cy={p.y}
+            r={HANDLE_R}
+            fill="#ffffff"
+            stroke="#2563eb"
+            strokeWidth="2"
+          />
+        );
+      });
+    }
+
+    return circles;
   }
 
   function renderSelectionBox() {
@@ -274,7 +283,7 @@ export default function DrawingSvg() {
       {polylineDraft && renderShape(polylineDraft, false)}
       {renderSelectionBox()}
       {renderMovePreview()}
-      {renderHandles()}
+      {renderMultiHandles()}
       {renderSnapTarget()}
     </>
   );

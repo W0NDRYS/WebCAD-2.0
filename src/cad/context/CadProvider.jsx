@@ -37,15 +37,19 @@ export function CadProvider({ children }) {
     function isTypingTarget(el) {
       if (!el) return false;
       const tag = el.tagName;
-      return (
-        tag === "INPUT" ||
-        tag === "TEXTAREA" ||
-        el.isContentEditable
-      );
+      return tag === "INPUT" || tag === "TEXTAREA" || el.isContentEditable;
     }
 
     function onKeyDown(e) {
       const activeEl = document.activeElement;
+
+      if (e.key === "Escape") {
+        const canceled = pointerHandlers.cancelCurrentInteraction?.();
+        if (canceled) {
+          e.preventDefault();
+          return;
+        }
+      }
 
       if (!isTypingTarget(activeEl)) {
         if (e.key === "Delete" || e.key === "Backspace") {

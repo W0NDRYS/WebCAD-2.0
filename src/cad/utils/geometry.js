@@ -12,6 +12,13 @@ export function distance(x1, y1, x2, y2) {
   return Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
 }
 
+export function pointsEqual(a, b, tolerance = 0.001) {
+  return (
+    Math.abs(a.x - b.x) <= tolerance &&
+    Math.abs(a.y - b.y) <= tolerance
+  );
+}
+
 export function normalizeRect(shape) {
   return {
     x: Math.min(shape.x1, shape.x2),
@@ -170,8 +177,8 @@ export function boundsIntersect(a, b) {
 export function getShapeSnapPoints(shape) {
   if (shape.type === "line") {
     return [
-      { x: shape.x1, y: shape.y1, role: "start" },
-      { x: shape.x2, y: shape.y2, role: "end" },
+      { x: shape.x1, y: shape.y1, role: "endpoint", ref: "start" },
+      { x: shape.x2, y: shape.y2, role: "endpoint", ref: "end" },
     ];
   }
 
@@ -196,7 +203,12 @@ export function getShapeSnapPoints(shape) {
   }
 
   if (shape.type === "polyline") {
-    return shape.points.map((p) => ({ x: p.x, y: p.y, role: "vertex" }));
+    return shape.points.map((p, index) => ({
+      x: p.x,
+      y: p.y,
+      role: "vertex",
+      ref: index,
+    }));
   }
 
   if (shape.type === "text") {
@@ -226,6 +238,7 @@ export function findNearestSnapPoint(shapes, pointer, options = {}) {
           x: p.x,
           y: p.y,
           role: p.role,
+          ref: p.ref,
           distance: d,
         };
       }
@@ -233,4 +246,61 @@ export function findNearestSnapPoint(shapes, pointer, options = {}) {
   }
 
   return best;
+}
+
+export function findSharedNode(selectedShapes, pointer, maxDistance = 12) {
+  const clusters = [];
+
+  for (const shape of selectedShapes) {
+    if (shape.type !== "line" && shape.type !== "polyline") continue;
+
+    const points = getShapeSnapPoints(shape);
+
+    for (const pt of points) {
+      let cluster = clusters.find((c) =>
+        pointsEqual({ x: c.x, y: c.y }, { x: pt.x, y: pt.y })
+      );
+
+      if (!cluster) {
+        cluster = { x: pt.x, y: pt.y, members: [] };
+        clusters.push(cluster);
+      }
+
+      cluster.members.push({
+        shapeId: shape.id,
+        shapeType: shape.type,
+        ref: pt.ref,
+      });
+    }
+  }
+
+  const sharedClusters = clusters.filter((c) => c.members.length >= 2);
+
+  let best = null;
+  for (const c of sharedClusters) {
+    const d = distance(pointer.x, pointer.y, c.x, c.y);
+    if (d <= maxDistance && (!best || d < best.distance)) {
+      best = {
+        ...c,
+        role: "shared-node",
+        distance: d,
+      };
+    }
+  }
+
+  return best;
+}
+
+export function getSnapLabel(role) {
+  const map = {
+    endpoint: "Endpoint",
+    vertex: "Vertex",
+    center: "Center",
+    corner: "Corner",
+    quadrant: "Quadrant",
+    anchor: "Anchor",
+    "shared-node": "Shared node",
+  };
+
+  return map[role] || role || "";
 }
