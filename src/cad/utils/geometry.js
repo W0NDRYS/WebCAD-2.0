@@ -1,4 +1,26 @@
 import { HANDLE_R } from "../constants";
+
+export function uid() {
+  return Math.random().toString(36).slice(2, 10);
+}
+
+export function cloneShapes(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
+export function distance(x1, y1, x2, y2) {
+  return Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
+}
+
+export function normalizeRect(shape) {
+  return {
+    x: Math.min(shape.x1, shape.x2),
+    y: Math.min(shape.y1, shape.y2),
+    w: Math.abs(shape.x2 - shape.x1),
+    h: Math.abs(shape.y2 - shape.y1),
+  };
+}
+
 export function hitTest(shape, x, y) {
   const tolerance = 10;
 
@@ -8,7 +30,8 @@ export function hitTest(shape, x, y) {
   }
 
   if (shape.type === "circle") {
-    return Math.abs(distance(shape.cx, shape.cy, x, y) - shape.r) <= tolerance || distance(shape.cx, shape.cy, x, y) < shape.r;
+    const d = distance(shape.cx, shape.cy, x, y);
+    return Math.abs(d - shape.r) <= tolerance || d < shape.r;
   }
 
   if (shape.type === "line") {
@@ -19,16 +42,26 @@ export function hitTest(shape, x, y) {
   }
 
   if (shape.type === "text") {
-    return x >= shape.x && x <= shape.x + shape.text.length * shape.fontSize * 0.65 && y <= shape.y && y >= shape.y - shape.fontSize;
+    return (
+      x >= shape.x &&
+      x <= shape.x + shape.text.length * shape.fontSize * 0.65 &&
+      y <= shape.y &&
+      y >= shape.y - shape.fontSize
+    );
   }
 
   if (shape.type === "polyline") {
     return shape.points.some((p, i) => {
       const prev = i > 0 ? shape.points[i - 1] : null;
-      if (!prev) return distance(p.x, p.y, x, y) < tolerance;
+
+      if (!prev) {
+        return distance(p.x, p.y, x, y) < tolerance;
+      }
+
       const len = distance(prev.x, prev.y, p.x, p.y);
       const d1 = distance(prev.x, prev.y, x, y);
       const d2 = distance(p.x, p.y, x, y);
+
       return Math.abs(len - (d1 + d2)) < tolerance;
     });
   }
@@ -45,6 +78,8 @@ export function getLineHandle(shape, x, y) {
 
 export function getPolylineHandle(shape, x, y) {
   if (!shape || shape.type !== "polyline") return null;
-  const idx = shape.points.findIndex((p) => distance(p.x, p.y, x, y) <= HANDLE_R + 4);
+  const idx = shape.points.findIndex(
+    (p) => distance(p.x, p.y, x, y) <= HANDLE_R + 4
+  );
   return idx >= 0 ? idx : null;
 }
