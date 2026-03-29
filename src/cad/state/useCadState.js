@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from "react";
-import { BASE_GRID_MM } from "../constants";
+import { BASE_GRID_MM, SVG_H, SVG_W } from "../constants";
 import { distance } from "../utils/geometry";
 
 export function useCadState() {
@@ -29,6 +29,14 @@ export function useCadState() {
   const [commandValue, setCommandValue] = useState("");
   const [selectionBox, setSelectionBox] = useState(null);
   const [snapTarget, setSnapTarget] = useState(null);
+
+  // viewport / camera
+  const [viewport, setViewport] = useState({
+    x: 0,
+    y: 0,
+    width: SVG_W,
+    height: SVG_H,
+  });
 
   const selectedShape = useMemo(
     () => shapes.find((s) => s.id === selectedId) || null,
@@ -110,5 +118,7 @@ export function useCadState() {
     setSelectionBox,
     snapTarget,
     setSnapTarget,
+    viewport,
+    setViewport,
   };
 }

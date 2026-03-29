@@ -1,7 +1,12 @@
 import React from "react";
 import { HANDLE_R, SVG_H, SVG_W } from "../constants";
 import { useCad } from "../context/CadContext";
-import { normalizeRect, normalizeSelectionBox } from "../utils/geometry";
+import {
+  getNearbySnapPoints,
+  getSnapLabel,
+  normalizeRect,
+  normalizeSelectionBox,
+} from "../utils/geometry";
 
 function renderShape(shape, isSelected = false, opacity = 1, dashed = false) {
   const extra = isSelected
@@ -110,6 +115,9 @@ export default function DrawingSvg() {
   } = useCad();
 
   const selectedShapes = shapes.filter((s) => selectedIds.includes(s.id));
+  const nearbySnapPoints = getNearbySnapPoints(shapes, pointer, {
+    maxDistance: 18,
+  });
 
   function renderMultiHandles() {
     if (tool !== "select") return null;
@@ -219,6 +227,23 @@ export default function DrawingSvg() {
     );
   }
 
+  function renderNearbySnapPoints() {
+    if (!nearbySnapPoints.length) return null;
+
+    return nearbySnapPoints.slice(0, 8).map((p, i) => (
+      <circle
+        key={`near-snap-${i}-${p.shapeId}-${p.ref ?? "r"}`}
+        cx={p.x}
+        cy={p.y}
+        r={p.role === "midpoint" ? 4 : 3}
+        fill="#ffffff"
+        stroke="#94a3b8"
+        strokeWidth="1.5"
+        opacity={0.9}
+      />
+    ));
+  }
+
   function renderSnapTarget() {
     if (!snapTarget) return null;
 
@@ -235,9 +260,29 @@ export default function DrawingSvg() {
         <circle
           cx={snapTarget.x}
           cy={snapTarget.y}
-          r={3}
+          r={snapTarget.role === "midpoint" ? 4 : 3}
           fill="#22c55e"
         />
+
+        <g transform={`translate(${snapTarget.x + 12}, ${snapTarget.y - 12})`}>
+          <rect
+            x="0"
+            y="-12"
+            width={Math.max(56, getSnapLabel(snapTarget.role).length * 7)}
+            height="20"
+            rx="6"
+            fill="rgba(15,23,42,0.9)"
+          />
+          <text
+            x="8"
+            y="2"
+            fontSize="12"
+            fill="#ffffff"
+            fontFamily="Arial, Helvetica, sans-serif"
+          >
+            {getSnapLabel(snapTarget.role)}
+          </text>
+        </g>
       </>
     );
   }
@@ -283,6 +328,7 @@ export default function DrawingSvg() {
       {polylineDraft && renderShape(polylineDraft, false)}
       {renderSelectionBox()}
       {renderMovePreview()}
+      {renderNearbySnapPoints()}
       {renderMultiHandles()}
       {renderSnapTarget()}
     </>
