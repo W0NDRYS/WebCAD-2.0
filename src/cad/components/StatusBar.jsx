@@ -63,7 +63,7 @@ export default function StatusBar() {
 
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
         <a
-          href="https://buymeacoffee.com/TVUJ_LINK"
+          href="https://buymeacoffee.com/w0ndrys"
           target="_blank"
           rel="noopener noreferrer"
           style={{
