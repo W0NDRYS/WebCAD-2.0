@@ -55,8 +55,44 @@ export function createPointerHandlers(
     setPointer(point);
 
     if (tool === "select") {
+      if (interaction?.kind === "move-preview") {
+        if (
+          JSON.stringify(interaction.startShapes) !== JSON.stringify(shapes)
+        ) {
+          pushHistory(interaction.startShapes);
+        }
+        setInteraction(null);
+        setStatus("Přesun objektu potvrzen.");
+        return;
+      }
+
       if (tryStartHandleEdit(point)) return;
-      selectAtPoint(point);
+
+      const selected = selectAtPoint(point);
+      if (selected) {
+        setInteraction((prev) => {
+          if (prev?.kind) return prev;
+          const hit = [...shapes].reverse().find((s) => {
+            if (s.type === "rect") {
+              const left = Math.min(s.x1, s.x2);
+              const top = Math.min(s.y1, s.y2);
+              const right = Math.max(s.x1, s.x2);
+              const bottom = Math.max(s.y1, s.y2);
+              return point.x >= left && point.x <= right && point.y >= top && point.y <= bottom;
+            }
+            return true;
+          });
+          return hit
+            ? {
+                kind: "move-preview",
+                point,
+                shapeId: hit.id,
+                startShapes: JSON.parse(JSON.stringify(shapes)),
+              }
+            : null;
+        });
+        setStatus("Přesun zahájen. Druhým klikem potvrď novou pozici.");
+      }
       return;
     }
 
@@ -97,6 +133,18 @@ export function createPointerHandlers(
     }
 
     if (!interaction) return;
+
+    if (interaction.kind === "move-preview") {
+      const dx = point.x - interaction.point.x;
+      const dy = point.y - interaction.point.y;
+
+      setShapes(
+        updateShapeById(interaction.startShapes, interaction.shapeId, (shape) =>
+          moveShape(shape, dx, dy)
+        )
+      );
+      return;
+    }
 
     if (interaction.kind === "move") {
       const dx = point.x - interaction.point.x;
@@ -140,7 +188,19 @@ export function createPointerHandlers(
   }
 
   function handlePointerUp() {
-    if (interaction) {
+    if (interaction?.kind === "move-preview") {
+      return;
+    }
+
+    if (interaction?.kind === "move") {
+      if (JSON.stringify(interaction.startShapes) !== JSON.stringify(shapes)) {
+        pushHistory(interaction.startShapes);
+      }
+      setInteraction(null);
+      return;
+    }
+
+    if (interaction?.kind === "line-handle" || interaction?.kind === "polyline-handle") {
       if (JSON.stringify(interaction.startShapes) !== JSON.stringify(shapes)) {
         pushHistory(interaction.startShapes);
       }
