@@ -106,6 +106,7 @@ export default function DrawingSvg() {
     selectionBox,
     interaction,
     pointer,
+    snapTarget,
   } = useCad();
 
   function renderHandles() {
@@ -204,11 +205,29 @@ export default function DrawingSvg() {
           strokeDasharray="6 4"
         />
 
+        <circle cx={pointer.x} cy={pointer.y} r={5} fill="#ef4444" />
+      </>
+    );
+  }
+
+  function renderSnapTarget() {
+    if (!snapTarget) return null;
+
+    return (
+      <>
         <circle
-          cx={pointer.x}
-          cy={pointer.y}
-          r={5}
-          fill="#ef4444"
+          cx={snapTarget.x}
+          cy={snapTarget.y}
+          r={10}
+          fill="rgba(34,197,94,0.15)"
+          stroke="#22c55e"
+          strokeWidth="2"
+        />
+        <circle
+          cx={snapTarget.x}
+          cy={snapTarget.y}
+          r={3}
+          fill="#22c55e"
         />
       </>
     );
@@ -256,6 +275,7 @@ export default function DrawingSvg() {
       {renderSelectionBox()}
       {renderMovePreview()}
       {renderHandles()}
+      {renderSnapTarget()}
     </>
   );
 }

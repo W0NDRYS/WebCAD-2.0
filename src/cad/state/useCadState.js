@@ -28,6 +28,7 @@ export function useCadState() {
   const [pointer, setPointer] = useState({ x: 0, y: 0 });
   const [commandValue, setCommandValue] = useState("");
   const [selectionBox, setSelectionBox] = useState(null);
+  const [snapTarget, setSnapTarget] = useState(null);
 
   const selectedShape = useMemo(
     () => shapes.find((s) => s.id === selectedId) || null,
@@ -107,5 +108,7 @@ export function useCadState() {
     liveMetric,
     selectionBox,
     setSelectionBox,
+    snapTarget,
+    setSnapTarget,
   };
 }

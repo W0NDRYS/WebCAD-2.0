@@ -1,6 +1,7 @@
 import { SVG_H, SVG_W } from "../constants";
 import {
   boundsIntersect,
+  findNearestSnapPoint,
   getShapeBounds,
   isBoundsInside,
   normalizeSelectionBox,
@@ -32,6 +33,7 @@ export function createPointerHandlers(
     setSelectedIds,
     setSelectionBox,
     selectionBox,
+    setSnapTarget,
   } = state;
 
   const { pushHistory } = historyActions;
@@ -61,6 +63,29 @@ export function createPointerHandlers(
     };
   }
 
+  function getSnappedPoint(rawPoint) {
+    if (
+      interaction?.kind !== "line-handle" &&
+      interaction?.kind !== "polyline-handle"
+    ) {
+      setSnapTarget(null);
+      return rawPoint;
+    }
+
+    const snapPoint = findNearestSnapPoint(shapes, rawPoint, {
+      excludeShapeId: interaction.shapeId,
+      maxDistance: 16,
+    });
+
+    if (snapPoint) {
+      setSnapTarget(snapPoint);
+      return { x: snapPoint.x, y: snapPoint.y };
+    }
+
+    setSnapTarget(null);
+    return rawPoint;
+  }
+
   function confirmCurrentInteraction() {
     if (!interaction) return false;
 
@@ -73,6 +98,19 @@ export function createPointerHandlers(
       return true;
     }
 
+    if (
+      interaction.kind === "line-handle" ||
+      interaction.kind === "polyline-handle"
+    ) {
+      if (JSON.stringify(interaction.startShapes) !== JSON.stringify(shapes)) {
+        pushHistory(interaction.startShapes);
+      }
+      setInteraction(null);
+      setSnapTarget(null);
+      setStatus("Bod potvrzen.");
+      return true;
+    }
+
     return false;
   }
 
@@ -81,6 +119,8 @@ export function createPointerHandlers(
     setPointer(point);
 
     if (tool === "select") {
+      if (confirmCurrentInteraction()) return;
+
       if (tryStartHandleEdit(point)) return;
 
       const hit = selectAtPoint(point);
@@ -144,35 +184,40 @@ export function createPointerHandlers(
   }
 
   function handlePointerMove(evt) {
-    const point = getPoint(evt);
-    setPointer(point);
+    const rawPoint = getPoint(evt);
+    setPointer(rawPoint);
 
     if (draft) {
-      updateDraft(point);
+      updateDraft(rawPoint);
       return;
     }
 
-    if (!interaction) return;
+    if (!interaction) {
+      setSnapTarget(null);
+      return;
+    }
 
     if (interaction.kind === "selection-box") {
       setSelectionBox({
         x1: interaction.startPoint.x,
         y1: interaction.startPoint.y,
-        x2: point.x,
-        y2: point.y,
+        x2: rawPoint.x,
+        y2: rawPoint.y,
       });
       return;
     }
 
     if (interaction.kind === "move-preview-group") {
-      const dx = point.x - interaction.point.x;
-      const dy = point.y - interaction.point.y;
+      const dx = rawPoint.x - interaction.point.x;
+      const dy = rawPoint.y - interaction.point.y;
 
       setShapes(
         moveShapesByIds(interaction.startShapes, interaction.shapeIds, dx, dy)
       );
       return;
     }
+
+    const point = getSnappedPoint(rawPoint);
 
     if (interaction.kind === "line-handle") {
       setShapes(
@@ -240,11 +285,10 @@ export function createPointerHandlers(
       interaction?.kind === "line-handle" ||
       interaction?.kind === "polyline-handle"
     ) {
-      if (JSON.stringify(interaction.startShapes) !== JSON.stringify(shapes)) {
-        pushHistory(interaction.startShapes);
-      }
-      setInteraction(null);
+      return;
     }
+
+    setSnapTarget(null);
   }
 
   function handleDoubleClick() {

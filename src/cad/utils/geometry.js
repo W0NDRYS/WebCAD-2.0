@@ -70,15 +70,11 @@ export function hitTest(shape, x, y) {
   if (shape.type === "polyline") {
     return shape.points.some((p, i) => {
       const prev = i > 0 ? shape.points[i - 1] : null;
-
-      if (!prev) {
-        return distance(p.x, p.y, x, y) < tolerance;
-      }
+      if (!prev) return distance(p.x, p.y, x, y) < tolerance;
 
       const len = distance(prev.x, prev.y, p.x, p.y);
       const d1 = distance(prev.x, prev.y, x, y);
       const d2 = distance(p.x, p.y, x, y);
-
       return Math.abs(len - (d1 + d2)) < tolerance;
     });
   }
@@ -169,4 +165,72 @@ export function boundsIntersect(a, b) {
     a.y2 < b.y1 ||
     a.y1 > b.y2
   );
+}
+
+export function getShapeSnapPoints(shape) {
+  if (shape.type === "line") {
+    return [
+      { x: shape.x1, y: shape.y1, role: "start" },
+      { x: shape.x2, y: shape.y2, role: "end" },
+    ];
+  }
+
+  if (shape.type === "rect") {
+    const r = normalizeRect(shape);
+    return [
+      { x: r.x, y: r.y, role: "corner" },
+      { x: r.x + r.w, y: r.y, role: "corner" },
+      { x: r.x + r.w, y: r.y + r.h, role: "corner" },
+      { x: r.x, y: r.y + r.h, role: "corner" },
+    ];
+  }
+
+  if (shape.type === "circle") {
+    return [
+      { x: shape.cx, y: shape.cy, role: "center" },
+      { x: shape.cx + shape.r, y: shape.cy, role: "quadrant" },
+      { x: shape.cx - shape.r, y: shape.cy, role: "quadrant" },
+      { x: shape.cx, y: shape.cy + shape.r, role: "quadrant" },
+      { x: shape.cx, y: shape.cy - shape.r, role: "quadrant" },
+    ];
+  }
+
+  if (shape.type === "polyline") {
+    return shape.points.map((p) => ({ x: p.x, y: p.y, role: "vertex" }));
+  }
+
+  if (shape.type === "text") {
+    return [{ x: shape.x, y: shape.y, role: "anchor" }];
+  }
+
+  return [];
+}
+
+export function findNearestSnapPoint(shapes, pointer, options = {}) {
+  const {
+    excludeShapeId = null,
+    maxDistance = 14,
+  } = options;
+
+  let best = null;
+
+  for (const shape of shapes) {
+    if (shape.id === excludeShapeId) continue;
+
+    const points = getShapeSnapPoints(shape);
+    for (const p of points) {
+      const d = distance(pointer.x, pointer.y, p.x, p.y);
+      if (d <= maxDistance && (!best || d < best.distance)) {
+        best = {
+          shapeId: shape.id,
+          x: p.x,
+          y: p.y,
+          role: p.role,
+          distance: d,
+        };
+      }
+    }
+  }
+
+  return best;
 }
