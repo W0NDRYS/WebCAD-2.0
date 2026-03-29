@@ -66,7 +66,12 @@ export function createPointerHandlers(
     };
   }
 
-  function getSnappedPoint(rawPoint) {
+  function getSnappedPoint(rawPoint, disableSnap = false) {
+    if (disableSnap) {
+      setSnapTarget(null);
+      return rawPoint;
+    }
+
     const snapPoint = findNearestSnapPoint(shapes, rawPoint, {
       excludeShapeId:
         interaction?.kind === "line-handle" || interaction?.kind === "polyline-handle"
@@ -150,14 +155,16 @@ export function createPointerHandlers(
 
   function handlePointerDown(evt) {
     const rawPoint = getPoint(evt);
-    const point = draft ? getSnappedPoint(rawPoint) : rawPoint;
+    const point = draft ? getSnappedPoint(rawPoint, evt.altKey) : rawPoint;
     setPointer(point);
 
     if (tool === "select") {
       if (confirmCurrentInteraction()) return;
 
       const selectedShapes = shapes.filter((s) => selectedIds.includes(s.id));
-      const sharedNode = findSharedNode(selectedShapes, rawPoint, 12);
+      const sharedNode = evt.altKey
+        ? null
+        : findSharedNode(selectedShapes, rawPoint, 12);
 
       if (sharedNode) {
         setInteraction({
@@ -217,16 +224,16 @@ export function createPointerHandlers(
     }
 
     if (tool === "polyline") {
-      handlePolylineClick(getSnappedPoint(rawPoint));
+      handlePolylineClick(getSnappedPoint(rawPoint, evt.altKey));
       return;
     }
 
     if (tool === "line" || tool === "rect" || tool === "circle") {
       if (!draft) {
-        beginShape(getSnappedPoint(rawPoint));
+        beginShape(getSnappedPoint(rawPoint, evt.altKey));
         focusCommandInput?.();
       } else {
-        updateDraft(getSnappedPoint(rawPoint));
+        updateDraft(getSnappedPoint(rawPoint, evt.altKey));
         commitDraft();
       }
       return;
@@ -238,13 +245,18 @@ export function createPointerHandlers(
     setPointer(rawPoint);
 
     if (draft) {
-      const point = getSnappedPoint(rawPoint);
+      const point = getSnappedPoint(rawPoint, evt.altKey);
       setPointer(point);
       updateDraft(point);
       return;
     }
 
     if (!interaction) {
+      if (evt.altKey) {
+        setSnapTarget(null);
+        return;
+      }
+
       const selectedShapes = shapes.filter((s) => selectedIds.includes(s.id));
       const sharedNode = findSharedNode(selectedShapes, rawPoint, 12);
 
@@ -279,7 +291,7 @@ export function createPointerHandlers(
       return;
     }
 
-    const point = getSnappedPoint(rawPoint);
+    const point = getSnappedPoint(rawPoint, evt.altKey);
     setPointer(point);
 
     if (interaction.kind === "shared-node") {

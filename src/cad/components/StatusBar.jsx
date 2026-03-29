@@ -58,6 +58,7 @@ export default function StatusBar() {
             <strong>Snap:</strong> {getSnapLabel(snapTarget.role)}
           </span>
         ) : null}
+        <span><strong>Alt:</strong> dočasně vypne snap</span>
       </div>
 
       <div style={styles.statusCommand}>

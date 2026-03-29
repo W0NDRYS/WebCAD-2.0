@@ -12,11 +12,15 @@ export function distance(x1, y1, x2, y2) {
   return Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
 }
 
+export function midpoint(a, b) {
+  return {
+    x: (a.x + b.x) / 2,
+    y: (a.y + b.y) / 2,
+  };
+}
+
 export function pointsEqual(a, b, tolerance = 0.001) {
-  return (
-    Math.abs(a.x - b.x) <= tolerance &&
-    Math.abs(a.y - b.y) <= tolerance
-  );
+  return Math.abs(a.x - b.x) <= tolerance && Math.abs(a.y - b.y) <= tolerance;
 }
 
 export function normalizeRect(shape) {
@@ -166,19 +170,19 @@ export function isBoundsInside(inner, outer) {
 }
 
 export function boundsIntersect(a, b) {
-  return !(
-    a.x2 < b.x1 ||
-    a.x1 > b.x2 ||
-    a.y2 < b.y1 ||
-    a.y1 > b.y2
-  );
+  return !(a.x2 < b.x1 || a.x1 > b.x2 || a.y2 < b.y1 || a.y1 > b.y2);
 }
 
 export function getShapeSnapPoints(shape) {
   if (shape.type === "line") {
+    const start = { x: shape.x1, y: shape.y1 };
+    const end = { x: shape.x2, y: shape.y2 };
+    const mid = midpoint(start, end);
+
     return [
-      { x: shape.x1, y: shape.y1, role: "endpoint", ref: "start" },
-      { x: shape.x2, y: shape.y2, role: "endpoint", ref: "end" },
+      { x: start.x, y: start.y, role: "endpoint", ref: "start" },
+      { x: end.x, y: end.y, role: "endpoint", ref: "end" },
+      { x: mid.x, y: mid.y, role: "midpoint", ref: "mid" },
     ];
   }
 
@@ -203,12 +207,29 @@ export function getShapeSnapPoints(shape) {
   }
 
   if (shape.type === "polyline") {
-    return shape.points.map((p, index) => ({
-      x: p.x,
-      y: p.y,
-      role: "vertex",
-      ref: index,
-    }));
+    const points = [];
+
+    shape.points.forEach((p, index) => {
+      points.push({
+        x: p.x,
+        y: p.y,
+        role: "vertex",
+        ref: index,
+      });
+
+      if (index > 0) {
+        const prev = shape.points[index - 1];
+        const mid = midpoint(prev, p);
+        points.push({
+          x: mid.x,
+          y: mid.y,
+          role: "midpoint",
+          ref: `mid-${index - 1}-${index}`,
+        });
+      }
+    });
+
+    return points;
   }
 
   if (shape.type === "text") {
@@ -248,13 +269,45 @@ export function findNearestSnapPoint(shapes, pointer, options = {}) {
   return best;
 }
 
+export function getNearbySnapPoints(shapes, pointer, options = {}) {
+  const {
+    excludeShapeId = null,
+    maxDistance = 18,
+  } = options;
+
+  const points = [];
+
+  for (const shape of shapes) {
+    if (shape.id === excludeShapeId) continue;
+
+    for (const p of getShapeSnapPoints(shape)) {
+      const d = distance(pointer.x, pointer.y, p.x, p.y);
+      if (d <= maxDistance) {
+        points.push({
+          shapeId: shape.id,
+          x: p.x,
+          y: p.y,
+          role: p.role,
+          ref: p.ref,
+          distance: d,
+        });
+      }
+    }
+  }
+
+  points.sort((a, b) => a.distance - b.distance);
+  return points;
+}
+
 export function findSharedNode(selectedShapes, pointer, maxDistance = 12) {
   const clusters = [];
 
   for (const shape of selectedShapes) {
     if (shape.type !== "line" && shape.type !== "polyline") continue;
 
-    const points = getShapeSnapPoints(shape);
+    const points = getShapeSnapPoints(shape).filter(
+      (p) => p.role === "endpoint" || p.role === "vertex"
+    );
 
     for (const pt of points) {
       let cluster = clusters.find((c) =>
@@ -295,6 +348,7 @@ export function getSnapLabel(role) {
   const map = {
     endpoint: "Endpoint",
     vertex: "Vertex",
+    midpoint: "Midpoint",
     center: "Center",
     corner: "Corner",
     quadrant: "Quadrant",
