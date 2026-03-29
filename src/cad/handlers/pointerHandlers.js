@@ -2,7 +2,13 @@ import { SVG_H, SVG_W } from "../constants";
 import { moveShape, updateShapeById } from "../utils/shapeMutations";
 import { snap } from "../utils/units";
 
-export function createPointerHandlers(state, historyActions, drawingActions, selectionActions) {
+export function createPointerHandlers(
+  state,
+  historyActions,
+  drawingActions,
+  selectionActions,
+  focusCommandInput
+) {
   const {
     svgRef,
     snapToGrid,
@@ -32,13 +38,15 @@ export function createPointerHandlers(state, historyActions, drawingActions, sel
     const svg = svgRef.current;
     if (!svg) return { x: 0, y: 0 };
 
-    const rect = svg.getBoundingClientRect();
-    const x = ((evt.clientX - rect.left) / rect.width) * SVG_W;
-    const y = ((evt.clientY - rect.top) / rect.height) * SVG_H;
+    const ctm = svg.getScreenCTM();
+    if (!ctm) return { x: 0, y: 0 };
+
+    const x = (evt.clientX - ctm.e) / ctm.a;
+    const y = (evt.clientY - ctm.f) / ctm.d;
 
     return {
-      x: snap(x, snapToGrid, gridMm),
-      y: snap(y, snapToGrid, gridMm),
+      x: snap(Math.max(0, Math.min(SVG_W, x)), snapToGrid, gridMm),
+      y: snap(Math.max(0, Math.min(SVG_H, y)), snapToGrid, gridMm),
     };
   }
 
@@ -70,6 +78,7 @@ export function createPointerHandlers(state, historyActions, drawingActions, sel
     if (tool === "line" || tool === "rect" || tool === "circle") {
       if (!draft) {
         beginShape(point);
+        focusCommandInput?.();
       } else {
         updateDraft(point);
         commitDraft();
