@@ -1,4 +1,5 @@
 import { distance, uid } from "../utils/geometry";
+import { clearAttachment, setAttachment } from "../utils/constraints";
 
 export function createDrawingActions(state, shapeActions) {
   const {
@@ -19,7 +20,7 @@ export function createDrawingActions(state, shapeActions) {
 
   function beginShape(point, startAttachment = null) {
     if (tool === "line") {
-      setDraft({
+      let nextDraft = {
         type: "line",
         x1: point.x,
         y1: point.y,
@@ -29,8 +30,14 @@ export function createDrawingActions(state, shapeActions) {
         stroke,
         strokeWidth,
         fill: "none",
-        constraints: startAttachment ? { start: startAttachment } : {},
-      });
+        constraints: {},
+      };
+
+      if (startAttachment) {
+        nextDraft = setAttachment(nextDraft, "start", startAttachment);
+      }
+
+      setDraft(nextDraft);
       setStatus("Zvolen první bod linky. Druhým klikem potvrď konec.");
     }
 
@@ -68,19 +75,29 @@ export function createDrawingActions(state, shapeActions) {
     if (!draft) return;
 
     if (draft.type === "line") {
+      let nextDraft = {
+        ...draft,
+        x2: point.x,
+        y2: point.y,
+      };
+
+      // vždycky nejdřív smaž starou end vazbu
+      nextDraft = clearAttachment(nextDraft, "end");
+
+      // a jen pokud aktuálně opravdu snapujeme, tak ji znovu nastav
+      if (endAttachment) {
+        nextDraft = setAttachment(nextDraft, "end", endAttachment);
+      }
+
+      setDraft(nextDraft);
+    }
+
+    if (draft.type === "rect") {
       setDraft({
         ...draft,
         x2: point.x,
         y2: point.y,
-        constraints: {
-          ...(draft.constraints || {}),
-          ...(endAttachment ? { end: endAttachment } : {}),
-        },
       });
-    }
-
-    if (draft.type === "rect") {
-      setDraft({ ...draft, x2: point.x, y2: point.y });
     }
 
     if (draft.type === "circle") {
@@ -95,15 +112,32 @@ export function createDrawingActions(state, shapeActions) {
     if (!draft) return;
 
     if (draft.type === "line") {
-      if (draft.x1 === draft.x2 && draft.y1 === draft.y2) return;
+      const zeroLength =
+        Math.abs(draft.x1 - draft.x2) < 0.001 &&
+        Math.abs(draft.y1 - draft.y2) < 0.001;
+
+      if (zeroLength) {
+        setStatus("Linka má nulovou délku.");
+        return;
+      }
     }
 
     if (draft.type === "rect") {
-      if (draft.x1 === draft.x2 && draft.y1 === draft.y2) return;
+      const zeroSize =
+        Math.abs(draft.x1 - draft.x2) < 0.001 &&
+        Math.abs(draft.y1 - draft.y2) < 0.001;
+
+      if (zeroSize) {
+        setStatus("Obdélník má nulovou velikost.");
+        return;
+      }
     }
 
     if (draft.type === "circle") {
-      if (!draft.r || draft.r <= 0) return;
+      if (!draft.r || draft.r <= 0) {
+        setStatus("Kružnice má nulový poloměr.");
+        return;
+      }
     }
 
     commitShapes([...shapes, draft], shapes, "Prvek přidán.");

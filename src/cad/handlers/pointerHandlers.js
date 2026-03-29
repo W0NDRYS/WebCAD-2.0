@@ -241,18 +241,21 @@ export function createPointerHandlers(
     }
 
     if (tool === "line" || tool === "rect" || tool === "circle") {
-      if (!draft) {
-        const { point: snappedPoint, attachment } = getSnapResult(rawPoint, evt.altKey);
-        beginShape(snappedPoint, attachment);
-        focusCommandInput?.();
-      } else {
-        const { point: snappedPoint, attachment } = getSnapResult(rawPoint, evt.altKey);
-        updateDraft(snappedPoint, attachment);
-        commitDraft();
-      }
-      return;
-    }
+  if (!draft) {
+    const { point: snappedPoint, attachment } = getSnapResult(rawPoint, evt.altKey);
+    beginShape(snappedPoint, attachment);
+    focusCommandInput?.();
+  } else {
+    const { point: snappedPoint, attachment } = getSnapResult(rawPoint, evt.altKey);
+
+    updateDraft(snappedPoint, attachment);
+
+    requestAnimationFrame(() => {
+      commitDraft();
+    });
   }
+  return;
+}
 
   function handlePointerMove(evt) {
     const rawPoint = getPoint(evt);
