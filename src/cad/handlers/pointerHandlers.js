@@ -5,7 +5,7 @@ import {
   isBoundsInside,
   normalizeSelectionBox,
 } from "../utils/geometry";
-import { moveShape, updateShapeById } from "../utils/shapeMutations";
+import { moveShape, moveShapesByIds, updateShapeById } from "../utils/shapeMutations";
 import { snap } from "../utils/units";
 
 export function createPointerHandlers(
@@ -22,6 +22,7 @@ export function createPointerHandlers(
     tool,
     shapes,
     draft,
+    selectedIds,
     setShapes,
     interaction,
     setInteraction,
@@ -60,49 +61,55 @@ export function createPointerHandlers(
     };
   }
 
+  function confirmCurrentInteraction() {
+    if (!interaction) return false;
+
+    if (
+      interaction.kind === "move-preview" ||
+      interaction.kind === "move-preview-group"
+    ) {
+      if (JSON.stringify(interaction.startShapes) !== JSON.stringify(shapes)) {
+        pushHistory(interaction.startShapes);
+      }
+      setInteraction(null);
+      setStatus("Přesun potvrzen.");
+      return true;
+    }
+
+    return false;
+  }
+
   function handlePointerDown(evt) {
     const point = getPoint(evt);
     setPointer(point);
 
     if (tool === "select") {
-      if (interaction?.kind === "move-preview") {
-        if (
-          JSON.stringify(interaction.startShapes) !== JSON.stringify(shapes)
-        ) {
-          pushHistory(interaction.startShapes);
-        }
-        setInteraction(null);
-        setStatus("Přesun objektu potvrzen.");
-        return;
-      }
+      if (confirmCurrentInteraction()) return;
 
       if (tryStartHandleEdit(point)) return;
 
-      const selected = selectAtPoint(point);
-
-      if (selected) {
-        const hit = [...shapes].reverse().find((s) => {
-          const b = getShapeBounds(s);
-          return (
-            point.x >= b.x1 &&
-            point.x <= b.x2 &&
-            point.y >= b.y1 &&
-            point.y <= b.y2
-          );
+      if (selectedIds?.length > 1) {
+        setInteraction({
+          kind: "move-preview-group",
+          point,
+          shapeIds: [...selectedIds],
+          startShapes: JSON.parse(JSON.stringify(shapes)),
         });
+        setStatus("Hromadný přesun zahájen. Druhým klikem nebo Enter potvrď.");
+        return;
+      }
 
-        if (hit) {
-          setSelectedId(hit.id);
-          setSelectedIds([hit.id]);
-          setInteraction({
-            kind: "move-preview",
-            point,
-            shapeId: hit.id,
-            startShapes: JSON.parse(JSON.stringify(shapes)),
-          });
-          setStatus("Přesun zahájen. Druhým klikem potvrď novou pozici.");
-          return;
-        }
+      const hit = selectAtPoint(point);
+
+      if (hit) {
+        setInteraction({
+          kind: "move-preview",
+          point,
+          shapeId: hit.id,
+          startShapes: JSON.parse(JSON.stringify(shapes)),
+        });
+        setStatus("Přesun zahájen. Druhým klikem nebo Enter potvrď.");
+        return;
       }
 
       setSelectedId(null);
@@ -181,6 +188,16 @@ export function createPointerHandlers(
       return;
     }
 
+    if (interaction.kind === "move-preview-group") {
+      const dx = point.x - interaction.point.x;
+      const dy = point.y - interaction.point.y;
+
+      setShapes(
+        moveShapesByIds(interaction.startShapes, interaction.shapeIds, dx, dy)
+      );
+      return;
+    }
+
     if (interaction.kind === "line-handle") {
       setShapes(
         updateShapeById(shapes, interaction.shapeId, (shape) => {
@@ -239,17 +256,8 @@ export function createPointerHandlers(
       return;
     }
 
-    if (interaction?.kind === "move-preview") {
-      return;
-    }
-
-    if (interaction?.kind === "move") {
-      if (JSON.stringify(interaction.startShapes) !== JSON.stringify(shapes)) {
-        pushHistory(interaction.startShapes);
-      }
-      setInteraction(null);
-      return;
-    }
+    if (interaction?.kind === "move-preview") return;
+    if (interaction?.kind === "move-preview-group") return;
 
     if (
       interaction?.kind === "line-handle" ||
@@ -271,5 +279,6 @@ export function createPointerHandlers(
     handlePointerMove,
     handlePointerUp,
     handleDoubleClick,
+    confirmCurrentInteraction,
   };
 }
