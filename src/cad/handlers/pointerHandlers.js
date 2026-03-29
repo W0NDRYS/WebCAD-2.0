@@ -112,7 +112,7 @@ export function createPointerHandlers(
           shapeIds: [...selectedIds],
           startShapes: JSON.parse(JSON.stringify(shapes)),
         });
-        setStatus("Přesun zahájen. Druhým klikem nebo Enter potvrď.");
+        setStatus("Přesun zahájen. Pohni myší a klikem nebo Enter potvrď.");
         focusCommandInput?.();
         return;
       }

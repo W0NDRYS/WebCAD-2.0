@@ -3,10 +3,15 @@ import { HANDLE_R, SVG_H, SVG_W } from "../constants";
 import { useCad } from "../context/CadContext";
 import { normalizeRect, normalizeSelectionBox } from "../utils/geometry";
 
-function renderShape(shape, isSelected = false) {
+function renderShape(shape, isSelected = false, opacity = 1, dashed = false) {
   const extra = isSelected
     ? { stroke: "#2563eb", strokeWidth: (shape.strokeWidth || 2) + 1 }
     : {};
+
+  const commonProps = {
+    opacity,
+    ...(dashed ? { strokeDasharray: "8 6" } : {}),
+  };
 
   if (shape.type === "line") {
     return (
@@ -18,6 +23,7 @@ function renderShape(shape, isSelected = false) {
         y2={shape.y2}
         stroke={extra.stroke || shape.stroke}
         strokeWidth={extra.strokeWidth || shape.strokeWidth}
+        {...commonProps}
       />
     );
   }
@@ -34,6 +40,7 @@ function renderShape(shape, isSelected = false) {
         stroke={extra.stroke || shape.stroke}
         strokeWidth={extra.strokeWidth || shape.strokeWidth}
         fill={shape.fill || "none"}
+        {...commonProps}
       />
     );
   }
@@ -48,6 +55,7 @@ function renderShape(shape, isSelected = false) {
         stroke={extra.stroke || shape.stroke}
         strokeWidth={extra.strokeWidth || shape.strokeWidth}
         fill={shape.fill || "none"}
+        {...commonProps}
       />
     );
   }
@@ -61,6 +69,7 @@ function renderShape(shape, isSelected = false) {
         fontSize={shape.fontSize}
         fill={extra.stroke || shape.stroke}
         fontFamily="Arial, Helvetica, sans-serif"
+        opacity={opacity}
       >
         {shape.text}
       </text>
@@ -75,6 +84,7 @@ function renderShape(shape, isSelected = false) {
         stroke={extra.stroke || shape.stroke}
         strokeWidth={extra.strokeWidth || shape.strokeWidth}
         fill="none"
+        {...commonProps}
       />
     );
   }
@@ -94,6 +104,8 @@ export default function DrawingSvg() {
     showGrid,
     gridMm,
     selectionBox,
+    interaction,
+    pointer,
   } = useCad();
 
   function renderHandles() {
@@ -159,6 +171,49 @@ export default function DrawingSvg() {
     );
   }
 
+  function renderMovePreview() {
+    if (interaction?.kind !== "move-preview-group") return null;
+
+    const idSet = new Set(interaction.shapeIds);
+    const originalShapes = interaction.startShapes.filter((s) => idSet.has(s.id));
+
+    return (
+      <>
+        {originalShapes.map((shape) => (
+          <React.Fragment key={`ghost-${shape.id}`}>
+            {renderShape(shape, false, 0.25, true)}
+          </React.Fragment>
+        ))}
+
+        <circle
+          cx={interaction.point.x}
+          cy={interaction.point.y}
+          r={6}
+          fill="#ffffff"
+          stroke="#ef4444"
+          strokeWidth="2"
+        />
+
+        <line
+          x1={interaction.point.x}
+          y1={interaction.point.y}
+          x2={pointer.x}
+          y2={pointer.y}
+          stroke="#ef4444"
+          strokeWidth="2"
+          strokeDasharray="6 4"
+        />
+
+        <circle
+          cx={pointer.x}
+          cy={pointer.y}
+          r={5}
+          fill="#ef4444"
+        />
+      </>
+    );
+  }
+
   return (
     <>
       <rect x="0" y="0" width={SVG_W} height={SVG_H} fill="#ffffff" />
@@ -199,6 +254,7 @@ export default function DrawingSvg() {
       {draft && renderShape(draft, false)}
       {polylineDraft && renderShape(polylineDraft, false)}
       {renderSelectionBox()}
+      {renderMovePreview()}
       {renderHandles()}
     </>
   );

@@ -1,4 +1,5 @@
 import { displayToMm } from "../utils/units";
+import { moveShapesByIds } from "../utils/shapeMutations";
 
 export function createInputActions(state, shapeActions) {
   const {
@@ -10,6 +11,9 @@ export function createInputActions(state, shapeActions) {
     setDraft,
     setStatus,
     pointer,
+    interaction,
+    setShapes,
+    setInteraction,
   } = state;
 
   const { commitShapes } = shapeActions;
@@ -66,7 +70,29 @@ export function createInputActions(state, shapeActions) {
       return;
     }
 
-    setStatus("Nejprve založ první bod kresleného objektu.");
+    if (interaction?.kind === "move-preview-group") {
+      const dx = pointer.x - interaction.point.x;
+      const dy = pointer.y - interaction.point.y;
+      const len = Math.sqrt(dx * dx + dy * dy);
+
+      const ux = len > 0 ? dx / len : 1;
+      const uy = len > 0 ? dy / len : 0;
+
+      const nextShapes = moveShapesByIds(
+        interaction.startShapes,
+        interaction.shapeIds,
+        ux * mm,
+        uy * mm
+      );
+
+      setShapes(nextShapes);
+      commitShapes(nextShapes, interaction.startShapes, "Přesun potvrzen přesnou hodnotou.");
+      setInteraction(null);
+      setCommandValue("");
+      return;
+    }
+
+    setStatus("Nejprve založ kreslení nebo spusť přesun.");
   }
 
   return { applyCommandValue };
