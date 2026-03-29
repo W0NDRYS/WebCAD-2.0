@@ -6,13 +6,14 @@ import StatusBar from "./cad/components/StatusBar";
 import "./index.css";
 
 const shell = {
-  minHeight: "100vh",
+  height: "100vh",
   display: "grid",
   gridTemplateColumns: "64px 1fr",
   gridTemplateRows: "1fr 48px",
   background: "#f1f5f9",
   color: "#0f172a",
   fontFamily: "Inter, Arial, Helvetica, sans-serif",
+  overflow: "hidden",
 };
 
 export default function App() {
