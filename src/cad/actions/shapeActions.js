@@ -1,7 +1,19 @@
 import { updateShapeById } from "../utils/shapeMutations";
 
 export function createShapeActions(state, historyActions) {
-  const { shapes, setShapes, selectedId, setSelectedId, setDraft, setPolylineDraft, setInteraction, setStatus } = state;
+  const {
+    shapes,
+    setShapes,
+    selectedId,
+    selectedIds,
+    setSelectedId,
+    setSelectedIds,
+    setDraft,
+    setPolylineDraft,
+    setInteraction,
+    setStatus,
+  } = state;
+
   const { pushHistory } = historyActions;
 
   function commitShapes(nextShapes, prevShapes = shapes, newStatus = "Upraveno.") {
@@ -13,15 +25,33 @@ export function createShapeActions(state, historyActions) {
   function clearAll() {
     commitShapes([], shapes, "Plátno vyčištěno.");
     setSelectedId(null);
+    setSelectedIds([]);
     setDraft(null);
     setPolylineDraft(null);
     setInteraction(null);
   }
 
   function removeSelected() {
-    if (!selectedId) return;
-    commitShapes(shapes.filter((s) => s.id !== selectedId), shapes, "Objekt smazán.");
+    const activeIds =
+      selectedIds && selectedIds.length
+        ? selectedIds
+        : selectedId
+        ? [selectedId]
+        : [];
+
+    if (!activeIds.length) return;
+
+    const idSet = new Set(activeIds);
+    commitShapes(
+      shapes.filter((s) => !idSet.has(s.id)),
+      shapes,
+      activeIds.length > 1
+        ? `Smazáno objektů: ${activeIds.length}`
+        : "Objekt smazán."
+    );
+
     setSelectedId(null);
+    setSelectedIds([]);
   }
 
   function applySelectedChange(updater, newStatus = "Objekt upraven.") {
@@ -29,5 +59,10 @@ export function createShapeActions(state, historyActions) {
     commitShapes(updateShapeById(shapes, selectedId, updater), shapes, newStatus);
   }
 
-  return { commitShapes, clearAll, removeSelected, applySelectedChange };
+  return {
+    commitShapes,
+    clearAll,
+    removeSelected,
+    applySelectedChange,
+  };
 }
