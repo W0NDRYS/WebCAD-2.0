@@ -2,12 +2,7 @@ import { SVG_H, SVG_W } from "../constants";
 import { moveShape, updateShapeById } from "../utils/shapeMutations";
 import { snap } from "../utils/units";
 
-export function createPointerHandlers(
-  state,
-  historyActions,
-  drawingActions,
-  selectionActions
-) {
+export function createPointerHandlers(state, historyActions, drawingActions, selectionActions) {
   const {
     svgRef,
     snapToGrid,
@@ -72,7 +67,15 @@ export function createPointerHandlers(
       return;
     }
 
-    beginShape(point);
+    if (tool === "line" || tool === "rect" || tool === "circle") {
+      if (!draft) {
+        beginShape(point);
+      } else {
+        updateDraft(point);
+        commitDraft();
+      }
+      return;
+    }
   }
 
   function handlePointerMove(evt) {
@@ -128,15 +131,8 @@ export function createPointerHandlers(
   }
 
   function handlePointerUp() {
-    if (draft) {
-      commitDraft();
-      return;
-    }
-
     if (interaction) {
-      if (
-        JSON.stringify(interaction.startShapes) !== JSON.stringify(shapes)
-      ) {
+      if (JSON.stringify(interaction.startShapes) !== JSON.stringify(shapes)) {
         pushHistory(interaction.startShapes);
       }
       setInteraction(null);
