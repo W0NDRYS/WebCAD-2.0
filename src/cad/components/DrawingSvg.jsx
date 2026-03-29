@@ -8,15 +8,20 @@ import {
   normalizeSelectionBox,
 } from "../utils/geometry";
 
+function shapeVectorProps(opacity = 1, dashed = false) {
+  return {
+    opacity,
+    vectorEffect: "non-scaling-stroke",
+    ...(dashed ? { strokeDasharray: "8 6" } : {}),
+  };
+}
+
 function renderShape(shape, isSelected = false, opacity = 1, dashed = false) {
   const extra = isSelected
     ? { stroke: "#2563eb", strokeWidth: (shape.strokeWidth || 2) + 1 }
     : {};
 
-  const commonProps = {
-    opacity,
-    ...(dashed ? { strokeDasharray: "8 6" } : {}),
-  };
+  const commonProps = shapeVectorProps(opacity, dashed);
 
   if (shape.type === "line") {
     return (
@@ -135,6 +140,7 @@ export default function DrawingSvg() {
           fill="#ffffff"
           stroke="#2563eb"
           strokeWidth="2"
+          vectorEffect="non-scaling-stroke"
         />
       );
       circles.push(
@@ -146,6 +152,7 @@ export default function DrawingSvg() {
           fill="#ffffff"
           stroke="#2563eb"
           strokeWidth="2"
+          vectorEffect="non-scaling-stroke"
         />
       );
     }
@@ -161,6 +168,7 @@ export default function DrawingSvg() {
             fill="#ffffff"
             stroke="#2563eb"
             strokeWidth="2"
+            vectorEffect="non-scaling-stroke"
           />
         );
       });
@@ -185,6 +193,7 @@ export default function DrawingSvg() {
         stroke={leftToRight ? "#2563eb" : "#16a34a"}
         strokeWidth="1.5"
         strokeDasharray="6 4"
+        vectorEffect="non-scaling-stroke"
       />
     );
   }
@@ -210,6 +219,7 @@ export default function DrawingSvg() {
           fill="#ffffff"
           stroke="#ef4444"
           strokeWidth="2"
+          vectorEffect="non-scaling-stroke"
         />
 
         <line
@@ -220,9 +230,16 @@ export default function DrawingSvg() {
           stroke="#ef4444"
           strokeWidth="2"
           strokeDasharray="6 4"
+          vectorEffect="non-scaling-stroke"
         />
 
-        <circle cx={pointer.x} cy={pointer.y} r={5} fill="#ef4444" />
+        <circle
+          cx={pointer.x}
+          cy={pointer.y}
+          r={5}
+          fill="#ef4444"
+          vectorEffect="non-scaling-stroke"
+        />
       </>
     );
   }
@@ -240,6 +257,7 @@ export default function DrawingSvg() {
         stroke="#94a3b8"
         strokeWidth="1.5"
         opacity={0.9}
+        vectorEffect="non-scaling-stroke"
       />
     ));
   }
@@ -256,12 +274,14 @@ export default function DrawingSvg() {
           fill="rgba(34,197,94,0.15)"
           stroke="#22c55e"
           strokeWidth="2"
+          vectorEffect="non-scaling-stroke"
         />
         <circle
           cx={snapTarget.x}
           cy={snapTarget.y}
           r={snapTarget.role === "midpoint" ? 4 : 3}
           fill="#22c55e"
+          vectorEffect="non-scaling-stroke"
         />
 
         <g transform={`translate(${snapTarget.x + 12}, ${snapTarget.y - 12})`}>
@@ -301,6 +321,7 @@ export default function DrawingSvg() {
             y2={SVG_H}
             stroke="#f1f5f9"
             strokeWidth="1"
+            vectorEffect="non-scaling-stroke"
           />
         ))}
 
@@ -314,6 +335,7 @@ export default function DrawingSvg() {
             y2={i * gridMm}
             stroke="#f1f5f9"
             strokeWidth="1"
+            vectorEffect="non-scaling-stroke"
           />
         ))}
 
