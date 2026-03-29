@@ -5,7 +5,7 @@ import {
   isBoundsInside,
   normalizeSelectionBox,
 } from "../utils/geometry";
-import { moveShape, moveShapesByIds, updateShapeById } from "../utils/shapeMutations";
+import { moveShapesByIds, updateShapeById } from "../utils/shapeMutations";
 import { snap } from "../utils/units";
 
 export function createPointerHandlers(
@@ -64,10 +64,7 @@ export function createPointerHandlers(
   function confirmCurrentInteraction() {
     if (!interaction) return false;
 
-    if (
-      interaction.kind === "move-preview" ||
-      interaction.kind === "move-preview-group"
-    ) {
+    if (interaction.kind === "move-preview-group") {
       if (JSON.stringify(interaction.startShapes) !== JSON.stringify(shapes)) {
         pushHistory(interaction.startShapes);
       }
@@ -84,33 +81,10 @@ export function createPointerHandlers(
     setPointer(point);
 
     if (tool === "select") {
-      if (confirmCurrentInteraction()) return;
-
       if (tryStartHandleEdit(point)) return;
 
-      if (selectedIds?.length > 1) {
-        setInteraction({
-          kind: "move-preview-group",
-          point,
-          shapeIds: [...selectedIds],
-          startShapes: JSON.parse(JSON.stringify(shapes)),
-        });
-        setStatus("Hromadný přesun zahájen. Druhým klikem nebo Enter potvrď.");
-        return;
-      }
-
       const hit = selectAtPoint(point);
-
-      if (hit) {
-        setInteraction({
-          kind: "move-preview",
-          point,
-          shapeId: hit.id,
-          startShapes: JSON.parse(JSON.stringify(shapes)),
-        });
-        setStatus("Přesun zahájen. Druhým klikem nebo Enter potvrď.");
-        return;
-      }
+      if (hit) return;
 
       setSelectedId(null);
       setSelectedIds([]);
@@ -129,7 +103,21 @@ export function createPointerHandlers(
     }
 
     if (tool === "pan") {
-      setStatus("Posun plátna zatím není implementovaný.");
+      if (confirmCurrentInteraction()) return;
+
+      if (selectedIds?.length > 0) {
+        setInteraction({
+          kind: "move-preview-group",
+          point,
+          shapeIds: [...selectedIds],
+          startShapes: JSON.parse(JSON.stringify(shapes)),
+        });
+        setStatus("Přesun zahájen. Druhým klikem nebo Enter potvrď.");
+        focusCommandInput?.();
+        return;
+      }
+
+      setStatus("Nejprve vyber jeden nebo více objektů.");
       return;
     }
 
@@ -173,18 +161,6 @@ export function createPointerHandlers(
         x2: point.x,
         y2: point.y,
       });
-      return;
-    }
-
-    if (interaction.kind === "move-preview") {
-      const dx = point.x - interaction.point.x;
-      const dy = point.y - interaction.point.y;
-
-      setShapes(
-        updateShapeById(interaction.startShapes, interaction.shapeId, (shape) =>
-          moveShape(shape, dx, dy)
-        )
-      );
       return;
     }
 
@@ -256,8 +232,9 @@ export function createPointerHandlers(
       return;
     }
 
-    if (interaction?.kind === "move-preview") return;
-    if (interaction?.kind === "move-preview-group") return;
+    if (interaction?.kind === "move-preview-group") {
+      return;
+    }
 
     if (
       interaction?.kind === "line-handle" ||
