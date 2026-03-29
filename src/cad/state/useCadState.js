@@ -5,6 +5,7 @@ import { distance } from "../utils/geometry";
 export function useCadState() {
   const svgRef = useRef(null);
   const fileInputRef = useRef(null);
+  const commandInputRef = useRef(null);
   const historyRef = useRef([]);
   const futureRef = useRef([]);
 
@@ -26,34 +27,79 @@ export function useCadState() {
   const [pointer, setPointer] = useState({ x: 0, y: 0 });
   const [commandValue, setCommandValue] = useState("");
 
-  const selectedShape = useMemo(() => shapes.find((s) => s.id === selectedId) || null, [shapes, selectedId]);
+  const selectedShape = useMemo(
+    () => shapes.find((s) => s.id === selectedId) || null,
+    [shapes, selectedId]
+  );
 
   const liveMetric = useMemo(() => {
-    if (draft?.type === "line") return { kind: "length", valueMm: distance(draft.x1, draft.y1, draft.x2, draft.y2) };
-    if (draft?.type === "circle") return { kind: "radius", valueMm: draft.r, diameterMm: draft.r * 2 };
+    if (draft?.type === "line") {
+      return {
+        kind: "length",
+        valueMm: distance(draft.x1, draft.y1, draft.x2, draft.y2),
+      };
+    }
+
+    if (draft?.type === "circle") {
+      return {
+        kind: "radius",
+        valueMm: draft.r,
+        diameterMm: draft.r * 2,
+      };
+    }
+
+    if (draft?.type === "rect") {
+      return {
+        kind: "rect",
+        widthMm: Math.abs(draft.x2 - draft.x1),
+        heightMm: Math.abs(draft.y2 - draft.y1),
+      };
+    }
+
     return null;
   }, [draft]);
 
   return {
-    svgRef, fileInputRef, historyRef, futureRef,
-    tool, setTool,
-    shapes, setShapes,
-    selectedId, setSelectedId,
+    svgRef,
+    fileInputRef,
+    commandInputRef,
+    historyRef,
+    futureRef,
+    tool,
+    setTool,
+    shapes,
+    setShapes,
+    selectedId,
+    setSelectedId,
     selectedShape,
-    draft, setDraft,
-    polylineDraft, setPolylineDraft,
-    snapToGrid, setSnapToGrid,
-    showGrid, setShowGrid,
-    stroke, setStroke,
-    fill, setFill,
-    strokeWidth, setStrokeWidth,
-    fontSize, setFontSize,
-    units, setUnits,
-    gridMm, setGridMm,
-    status, setStatus,
-    interaction, setInteraction,
-    pointer, setPointer,
-    commandValue, setCommandValue,
+    draft,
+    setDraft,
+    polylineDraft,
+    setPolylineDraft,
+    snapToGrid,
+    setSnapToGrid,
+    showGrid,
+    setShowGrid,
+    stroke,
+    setStroke,
+    fill,
+    setFill,
+    strokeWidth,
+    setStrokeWidth,
+    fontSize,
+    setFontSize,
+    units,
+    setUnits,
+    gridMm,
+    setGridMm,
+    status,
+    setStatus,
+    interaction,
+    setInteraction,
+    pointer,
+    setPointer,
+    commandValue,
+    setCommandValue,
     liveMetric,
   };
 }
