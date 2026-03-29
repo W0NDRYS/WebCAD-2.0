@@ -1,13 +1,30 @@
-import { cloneShapes, getLineHandle, getPolylineHandle, hitTest } from "../utils/geometry";
+import {
+  cloneShapes,
+  getLineHandle,
+  getPolylineHandle,
+  hitTest,
+} from "../utils/geometry";
 
 export function createSelectionActions(state) {
-  const { selectedShape, shapes, setSelectedId, setInteraction, setStatus } = state;
+  const {
+    selectedShape,
+    shapes,
+    setSelectedId,
+    setSelectedIds,
+    setInteraction,
+    setStatus,
+  } = state;
 
   function tryStartHandleEdit(point) {
     if (selectedShape?.type === "line") {
       const handle = getLineHandle(selectedShape, point.x, point.y);
       if (handle) {
-        setInteraction({ kind: "line-handle", handle, shapeId: selectedShape.id, startShapes: cloneShapes(shapes) });
+        setInteraction({
+          kind: "line-handle",
+          handle,
+          shapeId: selectedShape.id,
+          startShapes: cloneShapes(shapes),
+        });
         setStatus("Upravuješ koncový bod linky.");
         return true;
       }
@@ -16,7 +33,12 @@ export function createSelectionActions(state) {
     if (selectedShape?.type === "polyline") {
       const handleIndex = getPolylineHandle(selectedShape, point.x, point.y);
       if (handleIndex !== null) {
-        setInteraction({ kind: "polyline-handle", pointIndex: handleIndex, shapeId: selectedShape.id, startShapes: cloneShapes(shapes) });
+        setInteraction({
+          kind: "polyline-handle",
+          pointIndex: handleIndex,
+          shapeId: selectedShape.id,
+          startShapes: cloneShapes(shapes),
+        });
         setStatus("Upravuješ bod polyline.");
         return true;
       }
@@ -27,15 +49,21 @@ export function createSelectionActions(state) {
 
   function selectAtPoint(point) {
     const hit = [...shapes].reverse().find((s) => hitTest(s, point.x, point.y));
+
     setSelectedId(hit?.id || null);
+    setSelectedIds(hit ? [hit.id] : []);
+
     if (hit) {
-      setInteraction({ kind: "move", point, shapeId: hit.id, startShapes: cloneShapes(shapes) });
       setStatus(`Vybrán objekt: ${hit.type}`);
-      return true;
+      return hit;
     }
+
     setStatus("Nic nevybráno.");
-    return false;
+    return null;
   }
 
-  return { tryStartHandleEdit, selectAtPoint };
+  return {
+    tryStartHandleEdit,
+    selectAtPoint,
+  };
 }
