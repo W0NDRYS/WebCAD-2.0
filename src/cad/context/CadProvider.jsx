@@ -11,13 +11,27 @@ import { createPointerHandlers } from "../handlers/pointerHandlers";
 
 export function CadProvider({ children }) {
   const state = useCadState();
+
+  function focusCommandInput() {
+    requestAnimationFrame(() => {
+      state.commandInputRef.current?.focus();
+      state.commandInputRef.current?.select?.();
+    });
+  }
+
   const historyActions = createHistoryActions(state);
   const shapeActions = createShapeActions(state, historyActions);
   const drawingActions = createDrawingActions(state, shapeActions);
   const selectionActions = createSelectionActions(state);
   const exportActions = createExportActions(state, shapeActions);
   const inputActions = createInputActions(state, shapeActions);
-  const pointerHandlers = createPointerHandlers(state, historyActions, drawingActions, selectionActions);
+  const pointerHandlers = createPointerHandlers(
+    state,
+    historyActions,
+    drawingActions,
+    selectionActions,
+    focusCommandInput
+  );
 
   const value = {
     ...state,
@@ -28,6 +42,7 @@ export function CadProvider({ children }) {
     ...exportActions,
     ...inputActions,
     ...pointerHandlers,
+    focusCommandInput,
   };
 
   return <CadContext.Provider value={value}>{children}</CadContext.Provider>;
