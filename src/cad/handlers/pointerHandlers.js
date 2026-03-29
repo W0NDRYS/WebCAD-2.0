@@ -30,6 +30,7 @@ export function createPointerHandlers(
     tool,
     shapes,
     draft,
+    polylineDraft,
     selectedIds,
     setShapes,
     interaction,
@@ -80,7 +81,8 @@ export function createPointerHandlers(
 
     const snapPoint = findNearestSnapPoint(shapes, rawPoint, {
       excludeShapeId:
-        interaction?.kind === "line-handle" || interaction?.kind === "polyline-handle"
+        interaction?.kind === "line-handle" ||
+        interaction?.kind === "polyline-handle"
           ? interaction.shapeId
           : null,
       maxDistance: 16,
@@ -136,7 +138,7 @@ export function createPointerHandlers(
       return true;
     }
 
-    if (state.polylineDraft) {
+    if (polylineDraft) {
       setPolylineDraft(null);
       setSnapTarget(null);
       setStatus("Polyline zrušena.");
@@ -167,6 +169,7 @@ export function createPointerHandlers(
     const rawPoint = getPoint(evt);
     const snapResult = draft ? getSnapResult(rawPoint, evt.altKey) : null;
     const point = snapResult ? snapResult.point : rawPoint;
+
     setPointer(point);
 
     if (tool === "select") {
@@ -241,21 +244,28 @@ export function createPointerHandlers(
     }
 
     if (tool === "line" || tool === "rect" || tool === "circle") {
-  if (!draft) {
-    const { point: snappedPoint, attachment } = getSnapResult(rawPoint, evt.altKey);
-    beginShape(snappedPoint, attachment);
-    focusCommandInput?.();
-  } else {
-    const { point: snappedPoint, attachment } = getSnapResult(rawPoint, evt.altKey);
+      if (!draft) {
+        const { point: snappedPoint, attachment } = getSnapResult(
+          rawPoint,
+          evt.altKey
+        );
+        beginShape(snappedPoint, attachment);
+        focusCommandInput?.();
+      } else {
+        const { point: snappedPoint, attachment } = getSnapResult(
+          rawPoint,
+          evt.altKey
+        );
 
-    updateDraft(snappedPoint, attachment);
+        updateDraft(snappedPoint, attachment);
 
-    requestAnimationFrame(() => {
-      commitDraft();
-    });
+        requestAnimationFrame(() => {
+          commitDraft();
+        });
+      }
+      return;
+    }
   }
-  return;
-}
 
   function handlePointerMove(evt) {
     const rawPoint = getPoint(evt);
@@ -317,7 +327,9 @@ export function createPointerHandlers(
       setShapes(
         applyConstraintsToShapes(
           interaction.startShapes.map((shape) => {
-            const members = interaction.members.filter((m) => m.shapeId === shape.id);
+            const members = interaction.members.filter(
+              (m) => m.shapeId === shape.id
+            );
             if (!members.length) return shape;
 
             let next = JSON.parse(JSON.stringify(shape));
