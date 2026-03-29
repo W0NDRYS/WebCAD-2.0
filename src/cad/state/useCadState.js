@@ -12,6 +12,7 @@ export function useCadState() {
   const [tool, setTool] = useState("select");
   const [shapes, setShapes] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
+  const [selectedIds, setSelectedIds] = useState([]);
   const [draft, setDraft] = useState(null);
   const [polylineDraft, setPolylineDraft] = useState(null);
   const [snapToGrid, setSnapToGrid] = useState(true);
@@ -26,6 +27,7 @@ export function useCadState() {
   const [interaction, setInteraction] = useState(null);
   const [pointer, setPointer] = useState({ x: 0, y: 0 });
   const [commandValue, setCommandValue] = useState("");
+  const [selectionBox, setSelectionBox] = useState(null);
 
   const selectedShape = useMemo(
     () => shapes.find((s) => s.id === selectedId) || null,
@@ -71,6 +73,8 @@ export function useCadState() {
     setShapes,
     selectedId,
     setSelectedId,
+    selectedIds,
+    setSelectedIds,
     selectedShape,
     draft,
     setDraft,
@@ -101,5 +105,7 @@ export function useCadState() {
     commandValue,
     setCommandValue,
     liveMetric,
+    selectionBox,
+    setSelectionBox,
   };
 }
