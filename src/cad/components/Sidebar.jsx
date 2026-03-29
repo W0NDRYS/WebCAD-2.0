@@ -1,4 +1,29 @@
 import React from "react";
+import {
+  Circle,
+  Download,
+  FileImage,
+  FileJson,
+  FileType,
+  Minus,
+  MousePointer2,
+  Move,
+  PenTool,
+  Redo2,
+  Square,
+  Trash2,
+  Type,
+  Undo2,
+} from "lucide-react";
+import { TOOLBAR, styles } from "../constants";
+import { useCad } from "../context/CadContext";
+
+const toolIcons = {
+  select: MousePointer2,
+  line: Minus,
+  rect: Square,
+  circle: Circle,
+  polyline: PenTool,
   text: Type,
   pan: Move,
 };
@@ -15,7 +40,18 @@ const actions = [
 ];
 
 export default function Sidebar() {
-  const { tool, setTool, undo, redo, removeSelected, exportSvg, exportPng, exportPdf, exportDxf, exportJson } = useCad();
+  const {
+    tool,
+    setTool,
+    undo,
+    redo,
+    removeSelected,
+    exportSvg,
+    exportPng,
+    exportPdf,
+    exportDxf,
+    exportJson,
+  } = useCad();
 
   function runAction(key) {
     if (key === "undo") undo();
@@ -33,22 +69,44 @@ export default function Sidebar() {
       {TOOLBAR.map(({ key, label }) => {
         const Icon = toolIcons[key];
         const active = tool === key;
+
         return (
           <button
             key={key}
             title={label}
             onClick={() => setTool(key)}
-            style={{ ...styles.railButton, ...(active ? { background: "#2563eb", color: "#ffffff", border: "1px solid #2563eb" } : {}) }}
+            style={{
+              ...styles.railButton,
+              ...(active
+                ? {
+                    background: "#2563eb",
+                    color: "#ffffff",
+                    border: "1px solid #2563eb",
+                  }
+                : {}),
+            }}
           >
             <Icon size={18} />
           </button>
         );
       })}
 
-      <div style={{ width: "36px", height: "1px", background: "#e2e8f0", margin: "8px 0" }} />
+      <div
+        style={{
+          width: "36px",
+          height: "1px",
+          background: "#e2e8f0",
+          margin: "8px 0",
+        }}
+      />
 
       {actions.map(({ key, label, icon: Icon }) => (
-        <button key={key} title={label} onClick={() => runAction(key)} style={styles.railButton}>
+        <button
+          key={key}
+          title={label}
+          onClick={() => runAction(key)}
+          style={styles.railButton}
+        >
           <Icon size={18} />
         </button>
       ))}
