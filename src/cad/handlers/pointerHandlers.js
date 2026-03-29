@@ -7,6 +7,12 @@ import {
   isBoundsInside,
   normalizeSelectionBox,
 } from "../utils/geometry";
+import {
+  applyConstraintsToShapes,
+  clearAttachment,
+  makeAttachmentFromSnapTarget,
+  setAttachment,
+} from "../utils/constraints";
 import { moveShapesByIds, updateShapeById } from "../utils/shapeMutations";
 import { snap } from "../utils/units";
 
@@ -66,10 +72,10 @@ export function createPointerHandlers(
     };
   }
 
-  function getSnappedPoint(rawPoint, disableSnap = false) {
+  function getSnapResult(rawPoint, disableSnap = false) {
     if (disableSnap) {
       setSnapTarget(null);
-      return rawPoint;
+      return { point: rawPoint, attachment: null, snapTarget: null };
     }
 
     const snapPoint = findNearestSnapPoint(shapes, rawPoint, {
@@ -82,11 +88,15 @@ export function createPointerHandlers(
 
     if (snapPoint) {
       setSnapTarget(snapPoint);
-      return { x: snapPoint.x, y: snapPoint.y };
+      return {
+        point: { x: snapPoint.x, y: snapPoint.y },
+        attachment: makeAttachmentFromSnapTarget(snapPoint),
+        snapTarget: snapPoint,
+      };
     }
 
     setSnapTarget(null);
-    return rawPoint;
+    return { point: rawPoint, attachment: null, snapTarget: null };
   }
 
   function confirmCurrentInteraction() {
@@ -155,7 +165,8 @@ export function createPointerHandlers(
 
   function handlePointerDown(evt) {
     const rawPoint = getPoint(evt);
-    const point = draft ? getSnappedPoint(rawPoint, evt.altKey) : rawPoint;
+    const snapResult = draft ? getSnapResult(rawPoint, evt.altKey) : null;
+    const point = snapResult ? snapResult.point : rawPoint;
     setPointer(point);
 
     if (tool === "select") {
@@ -224,16 +235,19 @@ export function createPointerHandlers(
     }
 
     if (tool === "polyline") {
-      handlePolylineClick(getSnappedPoint(rawPoint, evt.altKey));
+      const { point: snappedPoint } = getSnapResult(rawPoint, evt.altKey);
+      handlePolylineClick(snappedPoint);
       return;
     }
 
     if (tool === "line" || tool === "rect" || tool === "circle") {
       if (!draft) {
-        beginShape(getSnappedPoint(rawPoint, evt.altKey));
+        const { point: snappedPoint, attachment } = getSnapResult(rawPoint, evt.altKey);
+        beginShape(snappedPoint, attachment);
         focusCommandInput?.();
       } else {
-        updateDraft(getSnappedPoint(rawPoint, evt.altKey));
+        const { point: snappedPoint, attachment } = getSnapResult(rawPoint, evt.altKey);
+        updateDraft(snappedPoint, attachment);
         commitDraft();
       }
       return;
@@ -245,9 +259,9 @@ export function createPointerHandlers(
     setPointer(rawPoint);
 
     if (draft) {
-      const point = getSnappedPoint(rawPoint, evt.altKey);
+      const { point, attachment } = getSnapResult(rawPoint, evt.altKey);
       setPointer(point);
-      updateDraft(point);
+      updateDraft(point, attachment);
       return;
     }
 
@@ -286,70 +300,102 @@ export function createPointerHandlers(
       const dy = rawPoint.y - interaction.point.y;
 
       setShapes(
-        moveShapesByIds(interaction.startShapes, interaction.shapeIds, dx, dy)
+        applyConstraintsToShapes(
+          moveShapesByIds(interaction.startShapes, interaction.shapeIds, dx, dy)
+        )
       );
       return;
     }
 
-    const point = getSnappedPoint(rawPoint, evt.altKey);
+    const { point, attachment } = getSnapResult(rawPoint, evt.altKey);
     setPointer(point);
 
     if (interaction.kind === "shared-node") {
       setShapes(
-        interaction.startShapes.map((shape) => {
-          const members = interaction.members.filter((m) => m.shapeId === shape.id);
-          if (!members.length) return shape;
+        applyConstraintsToShapes(
+          interaction.startShapes.map((shape) => {
+            const members = interaction.members.filter((m) => m.shapeId === shape.id);
+            if (!members.length) return shape;
 
-          const next = JSON.parse(JSON.stringify(shape));
+            let next = JSON.parse(JSON.stringify(shape));
 
-          for (const member of members) {
-            if (shape.type === "line") {
-              if (member.ref === "start") {
-                next.x1 = point.x;
-                next.y1 = point.y;
+            for (const member of members) {
+              if (shape.type === "line") {
+                if (member.ref === "start") {
+                  next.x1 = point.x;
+                  next.y1 = point.y;
+                  next = attachment
+                    ? setAttachment(next, "start", attachment)
+                    : clearAttachment(next, "start");
+                }
+                if (member.ref === "end") {
+                  next.x2 = point.x;
+                  next.y2 = point.y;
+                  next = attachment
+                    ? setAttachment(next, "end", attachment)
+                    : clearAttachment(next, "end");
+                }
               }
-              if (member.ref === "end") {
-                next.x2 = point.x;
-                next.y2 = point.y;
+
+              if (shape.type === "polyline") {
+                next.points[member.ref] = { x: point.x, y: point.y };
+                next = attachment
+                  ? setAttachment(next, member.ref, attachment)
+                  : clearAttachment(next, member.ref);
               }
             }
 
-            if (shape.type === "polyline") {
-              next.points[member.ref] = { x: point.x, y: point.y };
-            }
-          }
-
-          return next;
-        })
+            return next;
+          })
+        )
       );
       return;
     }
 
     if (interaction.kind === "line-handle") {
       setShapes(
-        updateShapeById(shapes, interaction.shapeId, (shape) => {
-          if (interaction.handle === "start") {
-            shape.x1 = point.x;
-            shape.y1 = point.y;
-          } else {
-            shape.x2 = point.x;
-            shape.y2 = point.y;
-          }
-          return shape;
-        })
+        applyConstraintsToShapes(
+          updateShapeById(shapes, interaction.shapeId, (shape) => {
+            let next = JSON.parse(JSON.stringify(shape));
+
+            if (interaction.handle === "start") {
+              next.x1 = point.x;
+              next.y1 = point.y;
+              next = attachment
+                ? setAttachment(next, "start", attachment)
+                : clearAttachment(next, "start");
+            } else {
+              next.x2 = point.x;
+              next.y2 = point.y;
+              next = attachment
+                ? setAttachment(next, "end", attachment)
+                : clearAttachment(next, "end");
+            }
+
+            return next;
+          })
+        )
       );
       return;
     }
 
     if (interaction.kind === "polyline-handle") {
       setShapes(
-        updateShapeById(shapes, interaction.shapeId, (shape) => {
-          shape.points[interaction.pointIndex] = {
-            x: point.x,
-            y: point.y,
-          };
-          return shape;
-        })
+        applyConstraintsToShapes(
+          updateShapeById(shapes, interaction.shapeId, (shape) => {
+            let next = JSON.parse(JSON.stringify(shape));
+            next.points[interaction.pointIndex] = {
+              x: point.x,
+              y: point.y,
+            };
+
+            next = attachment
+              ? setAttachment(next, interaction.pointIndex, attachment)
+              : clearAttachment(next, interaction.pointIndex);
+
+            return next;
+          })
+        )
       );
     }
   }

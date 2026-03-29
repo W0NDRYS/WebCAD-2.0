@@ -17,7 +17,7 @@ export function createDrawingActions(state, shapeActions) {
 
   const { commitShapes } = shapeActions;
 
-  function beginShape(point) {
+  function beginShape(point, startAttachment = null) {
     if (tool === "line") {
       setDraft({
         type: "line",
@@ -29,6 +29,7 @@ export function createDrawingActions(state, shapeActions) {
         stroke,
         strokeWidth,
         fill: "none",
+        constraints: startAttachment ? { start: startAttachment } : {},
       });
       setStatus("Zvolen první bod linky. Druhým klikem potvrď konec.");
     }
@@ -63,11 +64,19 @@ export function createDrawingActions(state, shapeActions) {
     }
   }
 
-  function updateDraft(point) {
+  function updateDraft(point, endAttachment = null) {
     if (!draft) return;
 
     if (draft.type === "line") {
-      setDraft({ ...draft, x2: point.x, y2: point.y });
+      setDraft({
+        ...draft,
+        x2: point.x,
+        y2: point.y,
+        constraints: {
+          ...(draft.constraints || {}),
+          ...(endAttachment ? { end: endAttachment } : {}),
+        },
+      });
     }
 
     if (draft.type === "rect") {

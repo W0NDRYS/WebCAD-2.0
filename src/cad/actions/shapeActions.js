@@ -1,3 +1,4 @@
+import { applyConstraintsToShapes } from "../utils/constraints";
 import { updateShapeById } from "../utils/shapeMutations";
 
 export function createShapeActions(state, historyActions) {
@@ -17,8 +18,9 @@ export function createShapeActions(state, historyActions) {
   const { pushHistory } = historyActions;
 
   function commitShapes(nextShapes, prevShapes = shapes, newStatus = "Upraveno.") {
+    const resolvedShapes = applyConstraintsToShapes(nextShapes);
     pushHistory(prevShapes);
-    setShapes(nextShapes);
+    setShapes(resolvedShapes);
     setStatus(newStatus);
   }
 
