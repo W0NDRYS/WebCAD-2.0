@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { CadContext } from "./CadContext";
 import { useCadState } from "../state/useCadState";
 import { createHistoryActions } from "../actions/historyActions";
@@ -32,6 +32,40 @@ export function CadProvider({ children }) {
     selectionActions,
     focusCommandInput
   );
+
+  useEffect(() => {
+    function isTypingTarget(el) {
+      if (!el) return false;
+      const tag = el.tagName;
+      return (
+        tag === "INPUT" ||
+        tag === "TEXTAREA" ||
+        el.isContentEditable
+      );
+    }
+
+    function onKeyDown(e) {
+      const activeEl = document.activeElement;
+
+      if (!isTypingTarget(activeEl)) {
+        if (e.key === "Delete" || e.key === "Backspace") {
+          e.preventDefault();
+          shapeActions.removeSelected();
+          return;
+        }
+
+        if (e.key === "Enter") {
+          const confirmed = pointerHandlers.confirmCurrentInteraction?.();
+          if (confirmed) {
+            e.preventDefault();
+          }
+        }
+      }
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [shapeActions, pointerHandlers]);
 
   const value = {
     ...state,
