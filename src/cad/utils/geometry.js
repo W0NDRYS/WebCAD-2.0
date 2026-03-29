@@ -21,6 +21,23 @@ export function normalizeRect(shape) {
   };
 }
 
+export function normalizeSelectionBox(box) {
+  const x1 = Math.min(box.x1, box.x2);
+  const y1 = Math.min(box.y1, box.y2);
+  const x2 = Math.max(box.x1, box.x2);
+  const y2 = Math.max(box.y1, box.y2);
+
+  return {
+    x1,
+    y1,
+    x2,
+    y2,
+    w: x2 - x1,
+    h: y2 - y1,
+    leftToRight: box.x2 >= box.x1,
+  };
+}
+
 export function hitTest(shape, x, y) {
   const tolerance = 10;
 
@@ -82,4 +99,74 @@ export function getPolylineHandle(shape, x, y) {
     (p) => distance(p.x, p.y, x, y) <= HANDLE_R + 4
   );
   return idx >= 0 ? idx : null;
+}
+
+export function getShapeBounds(shape) {
+  if (shape.type === "line") {
+    return {
+      x1: Math.min(shape.x1, shape.x2),
+      y1: Math.min(shape.y1, shape.y2),
+      x2: Math.max(shape.x1, shape.x2),
+      y2: Math.max(shape.y1, shape.y2),
+    };
+  }
+
+  if (shape.type === "rect") {
+    const r = normalizeRect(shape);
+    return {
+      x1: r.x,
+      y1: r.y,
+      x2: r.x + r.w,
+      y2: r.y + r.h,
+    };
+  }
+
+  if (shape.type === "circle") {
+    return {
+      x1: shape.cx - shape.r,
+      y1: shape.cy - shape.r,
+      x2: shape.cx + shape.r,
+      y2: shape.cy + shape.r,
+    };
+  }
+
+  if (shape.type === "text") {
+    return {
+      x1: shape.x,
+      y1: shape.y - shape.fontSize,
+      x2: shape.x + shape.text.length * shape.fontSize * 0.65,
+      y2: shape.y,
+    };
+  }
+
+  if (shape.type === "polyline") {
+    const xs = shape.points.map((p) => p.x);
+    const ys = shape.points.map((p) => p.y);
+    return {
+      x1: Math.min(...xs),
+      y1: Math.min(...ys),
+      x2: Math.max(...xs),
+      y2: Math.max(...ys),
+    };
+  }
+
+  return { x1: 0, y1: 0, x2: 0, y2: 0 };
+}
+
+export function isBoundsInside(inner, outer) {
+  return (
+    inner.x1 >= outer.x1 &&
+    inner.y1 >= outer.y1 &&
+    inner.x2 <= outer.x2 &&
+    inner.y2 <= outer.y2
+  );
+}
+
+export function boundsIntersect(a, b) {
+  return !(
+    a.x2 < b.x1 ||
+    a.x1 > b.x2 ||
+    a.y2 < b.y1 ||
+    a.y1 > b.y2
+  );
 }
