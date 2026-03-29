@@ -30,7 +30,6 @@ export function useCadState() {
   const [selectionBox, setSelectionBox] = useState(null);
   const [snapTarget, setSnapTarget] = useState(null);
 
-  // logical viewport = zdroj pravdy
   const [viewport, setViewport] = useState({
     x: 0,
     y: 0,
@@ -38,7 +37,6 @@ export function useCadState() {
     height: SVG_H,
   });
 
-  // render viewport = to, co se skutečně kreslí
   const [renderViewport, setRenderViewport] = useState({
     x: 0,
     y: 0,

@@ -125,7 +125,6 @@ export default function DrawingSvg() {
     maxDistance: 18,
   });
 
-  // konstantní vizuální velikosti v "world" jednotkách podle aktuálního render viewportu
   const worldPerScreenPx = renderViewport.width / 1200;
   const handleRadius = 8 * worldPerScreenPx;
   const smallPointRadius = 3.5 * worldPerScreenPx;

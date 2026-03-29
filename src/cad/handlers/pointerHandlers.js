@@ -1,27 +1,15 @@
 import { SVG_H, SVG_W } from "../constants";
-import {
-  boundsIntersect,
-  findNearestSnapPoint,
-  findSharedNode,
-  getShapeBounds,
-  isBoundsInside,
-  normalizeSelectionBox,
-} from "../utils/geometry";
-import {
-  applyConstraintsToShapes,
-  clearAttachment,
-  makeAttachmentFromSnapTarget,
-  setAttachment,
-} from "../utils/constraints";
-import { moveShapesByIds, updateShapeById } from "../utils/shapeMutations";
+import { moveShape, updateShapeById } from "../utils/shapeMutations";
 import { snap } from "../utils/units";
+
+let dragRafId = null;
+let pendingPoint = null;
 
 export function createPointerHandlers(
   state,
   historyActions,
   drawingActions,
-  selectionActions,
-  focusCommandInput
+  selectionActions
 ) {
   const {
     svgRef,
@@ -30,20 +18,11 @@ export function createPointerHandlers(
     tool,
     shapes,
     draft,
-    polylineDraft,
-    selectedIds,
     setShapes,
     interaction,
     setInteraction,
     setPointer,
     setStatus,
-    setSelectedId,
-    setSelectedIds,
-    setSelectionBox,
-    selectionBox,
-    setSnapTarget,
-    setDraft,
-    setPolylineDraft,
   } = state;
 
   const { pushHistory } = historyActions;
@@ -73,162 +52,81 @@ export function createPointerHandlers(
     };
   }
 
-  function getSnapResult(rawPoint, disableSnap = false) {
-    if (disableSnap) {
-      setSnapTarget(null);
-      return { point: rawPoint, attachment: null, snapTarget: null };
+  function cancelScheduledFrame() {
+    if (dragRafId) {
+      cancelAnimationFrame(dragRafId);
+      dragRafId = null;
     }
-
-    const snapPoint = findNearestSnapPoint(shapes, rawPoint, {
-      excludeShapeId:
-        interaction?.kind === "line-handle" ||
-        interaction?.kind === "polyline-handle"
-          ? interaction.shapeId
-          : null,
-      maxDistance: 16,
-    });
-
-    if (snapPoint) {
-      setSnapTarget(snapPoint);
-      return {
-        point: { x: snapPoint.x, y: snapPoint.y },
-        attachment: makeAttachmentFromSnapTarget(snapPoint),
-        snapTarget: snapPoint,
-      };
-    }
-
-    setSnapTarget(null);
-    return { point: rawPoint, attachment: null, snapTarget: null };
+    pendingPoint = null;
   }
 
-  function confirmCurrentInteraction() {
-    if (!interaction) return false;
+  function flushInteractionFrame() {
+    dragRafId = null;
 
-    if (interaction.kind === "move-preview-group") {
-      if (JSON.stringify(interaction.startShapes) !== JSON.stringify(shapes)) {
-        pushHistory(interaction.startShapes);
-      }
-      setInteraction(null);
-      setStatus("Přesun potvrzen.");
-      return true;
+    if (!interaction || !pendingPoint) return;
+
+    const point = pendingPoint;
+
+    if (interaction.kind === "move") {
+      const dx = point.x - interaction.point.x;
+      const dy = point.y - interaction.point.y;
+
+      setShapes(
+        updateShapeById(interaction.startShapes, interaction.shapeId, (shape) =>
+          moveShape(shape, dx, dy)
+        )
+      );
+      return;
     }
 
-    if (
-      interaction.kind === "line-handle" ||
-      interaction.kind === "polyline-handle" ||
-      interaction.kind === "shared-node"
-    ) {
-      if (JSON.stringify(interaction.startShapes) !== JSON.stringify(shapes)) {
-        pushHistory(interaction.startShapes);
-      }
-      setInteraction(null);
-      setSnapTarget(null);
-      setStatus("Bod potvrzen.");
-      return true;
+    if (interaction.kind === "line-handle") {
+      setShapes(
+        updateShapeById(shapes, interaction.shapeId, (shape) => {
+          if (interaction.handle === "start") {
+            shape.x1 = point.x;
+            shape.y1 = point.y;
+          } else {
+            shape.x2 = point.x;
+            shape.y2 = point.y;
+          }
+          return shape;
+        })
+      );
+      return;
     }
 
-    return false;
+    if (interaction.kind === "polyline-handle") {
+      setShapes(
+        updateShapeById(shapes, interaction.shapeId, (shape) => {
+          shape.points[interaction.pointIndex] = {
+            x: point.x,
+            y: point.y,
+          };
+          return shape;
+        })
+      );
+    }
   }
 
-  function cancelCurrentInteraction() {
-    if (draft) {
-      setDraft(null);
-      setSnapTarget(null);
-      setStatus("Kreslení zrušeno.");
-      return true;
-    }
+  function scheduleInteractionFrame(point) {
+    pendingPoint = point;
 
-    if (polylineDraft) {
-      setPolylineDraft(null);
-      setSnapTarget(null);
-      setStatus("Polyline zrušena.");
-      return true;
-    }
-
-    if (interaction?.startShapes) {
-      setShapes(interaction.startShapes);
-      setInteraction(null);
-      setSnapTarget(null);
-      setSelectionBox(null);
-      setStatus("Manipulace zrušena.");
-      return true;
-    }
-
-    if (interaction?.kind === "selection-box") {
-      setInteraction(null);
-      setSelectionBox(null);
-      setSnapTarget(null);
-      setStatus("Výběr zrušen.");
-      return true;
-    }
-
-    return false;
+    if (dragRafId) return;
+    dragRafId = requestAnimationFrame(flushInteractionFrame);
   }
 
   function handlePointerDown(evt) {
-    const rawPoint = getPoint(evt);
-    const snapResult = draft ? getSnapResult(rawPoint, evt.altKey) : null;
-    const point = snapResult ? snapResult.point : rawPoint;
-
+    const point = getPoint(evt);
     setPointer(point);
 
     if (tool === "select") {
-      if (confirmCurrentInteraction()) return;
-
-      const selectedShapes = shapes.filter((s) => selectedIds.includes(s.id));
-      const sharedNode = evt.altKey
-        ? null
-        : findSharedNode(selectedShapes, rawPoint, 12);
-
-      if (sharedNode) {
-        setInteraction({
-          kind: "shared-node",
-          point: { x: sharedNode.x, y: sharedNode.y },
-          members: sharedNode.members,
-          startShapes: JSON.parse(JSON.stringify(shapes)),
-        });
-        setSnapTarget(sharedNode);
-        setStatus("Společný bod vybrán. Pohni myší a klikem potvrď.");
-        return;
-      }
-
-      if (tryStartHandleEdit(rawPoint)) return;
-
-      const hit = selectAtPoint(rawPoint);
-      if (hit) return;
-
-      setSelectedId(null);
-      setSelectedIds([]);
-      setSelectionBox({
-        x1: rawPoint.x,
-        y1: rawPoint.y,
-        x2: rawPoint.x,
-        y2: rawPoint.y,
-      });
-      setInteraction({
-        kind: "selection-box",
-        startPoint: rawPoint,
-      });
-      setStatus("Táhni výběr.");
+      if (tryStartHandleEdit(point)) return;
+      selectAtPoint(point);
       return;
     }
 
     if (tool === "pan") {
-      if (confirmCurrentInteraction()) return;
-
-      if (selectedIds?.length > 0) {
-        setInteraction({
-          kind: "move-preview-group",
-          point: rawPoint,
-          shapeIds: [...selectedIds],
-          startShapes: JSON.parse(JSON.stringify(shapes)),
-        });
-        setStatus("Přesun zahájen. Pohni myší a klikem nebo Enter potvrď.");
-        focusCommandInput?.();
-        return;
-      }
-
-      setStatus("Nejprve vyber jeden nebo více objektů.");
+      setStatus("Posun plátna zatím není implementovaný.");
       return;
     }
 
@@ -238,218 +136,41 @@ export function createPointerHandlers(
     }
 
     if (tool === "polyline") {
-      const { point: snappedPoint } = getSnapResult(rawPoint, evt.altKey);
-      handlePolylineClick(snappedPoint);
+      handlePolylineClick(point);
       return;
     }
 
-    if (tool === "line" || tool === "rect" || tool === "circle") {
-      if (!draft) {
-        const { point: snappedPoint, attachment } = getSnapResult(
-          rawPoint,
-          evt.altKey
-        );
-        beginShape(snappedPoint, attachment);
-        focusCommandInput?.();
-      } else {
-        const { point: snappedPoint, attachment } = getSnapResult(
-          rawPoint,
-          evt.altKey
-        );
-
-        updateDraft(snappedPoint, attachment);
-
-        requestAnimationFrame(() => {
-          commitDraft();
-        });
-      }
-      return;
-    }
+    beginShape(point);
   }
 
   function handlePointerMove(evt) {
-    const rawPoint = getPoint(evt);
-    setPointer(rawPoint);
-
-    if (draft) {
-      const { point, attachment } = getSnapResult(rawPoint, evt.altKey);
-      setPointer(point);
-      updateDraft(point, attachment);
-      return;
-    }
-
-    if (!interaction) {
-      if (evt.altKey) {
-        setSnapTarget(null);
-        return;
-      }
-
-      const selectedShapes = shapes.filter((s) => selectedIds.includes(s.id));
-      const sharedNode = findSharedNode(selectedShapes, rawPoint, 12);
-
-      if (sharedNode) {
-        setSnapTarget(sharedNode);
-      } else {
-        const hoverSnap = findNearestSnapPoint(shapes, rawPoint, {
-          maxDistance: 14,
-        });
-        setSnapTarget(hoverSnap || null);
-      }
-      return;
-    }
-
-    if (interaction.kind === "selection-box") {
-      setSelectionBox({
-        x1: interaction.startPoint.x,
-        y1: interaction.startPoint.y,
-        x2: rawPoint.x,
-        y2: rawPoint.y,
-      });
-      return;
-    }
-
-    if (interaction.kind === "move-preview-group") {
-      const dx = rawPoint.x - interaction.point.x;
-      const dy = rawPoint.y - interaction.point.y;
-
-      setShapes(
-        applyConstraintsToShapes(
-          moveShapesByIds(interaction.startShapes, interaction.shapeIds, dx, dy)
-        )
-      );
-      return;
-    }
-
-    const { point, attachment } = getSnapResult(rawPoint, evt.altKey);
+    const point = getPoint(evt);
     setPointer(point);
 
-    if (interaction.kind === "shared-node") {
-      setShapes(
-        applyConstraintsToShapes(
-          interaction.startShapes.map((shape) => {
-            const members = interaction.members.filter(
-              (m) => m.shapeId === shape.id
-            );
-            if (!members.length) return shape;
-
-            let next = JSON.parse(JSON.stringify(shape));
-
-            for (const member of members) {
-              if (shape.type === "line") {
-                if (member.ref === "start") {
-                  next.x1 = point.x;
-                  next.y1 = point.y;
-                  next = attachment
-                    ? setAttachment(next, "start", attachment)
-                    : clearAttachment(next, "start");
-                }
-                if (member.ref === "end") {
-                  next.x2 = point.x;
-                  next.y2 = point.y;
-                  next = attachment
-                    ? setAttachment(next, "end", attachment)
-                    : clearAttachment(next, "end");
-                }
-              }
-
-              if (shape.type === "polyline") {
-                next.points[member.ref] = { x: point.x, y: point.y };
-                next = attachment
-                  ? setAttachment(next, member.ref, attachment)
-                  : clearAttachment(next, member.ref);
-              }
-            }
-
-            return next;
-          })
-        )
-      );
+    if (draft) {
+      updateDraft(point);
       return;
     }
 
-    if (interaction.kind === "line-handle") {
-      setShapes(
-        applyConstraintsToShapes(
-          updateShapeById(shapes, interaction.shapeId, (shape) => {
-            let next = JSON.parse(JSON.stringify(shape));
+    if (!interaction) return;
 
-            if (interaction.handle === "start") {
-              next.x1 = point.x;
-              next.y1 = point.y;
-              next = attachment
-                ? setAttachment(next, "start", attachment)
-                : clearAttachment(next, "start");
-            } else {
-              next.x2 = point.x;
-              next.y2 = point.y;
-              next = attachment
-                ? setAttachment(next, "end", attachment)
-                : clearAttachment(next, "end");
-            }
-
-            return next;
-          })
-        )
-      );
-      return;
-    }
-
-    if (interaction.kind === "polyline-handle") {
-      setShapes(
-        applyConstraintsToShapes(
-          updateShapeById(shapes, interaction.shapeId, (shape) => {
-            let next = JSON.parse(JSON.stringify(shape));
-            next.points[interaction.pointIndex] = {
-              x: point.x,
-              y: point.y,
-            };
-
-            next = attachment
-              ? setAttachment(next, interaction.pointIndex, attachment)
-              : clearAttachment(next, interaction.pointIndex);
-
-            return next;
-          })
-        )
-      );
-    }
+    scheduleInteractionFrame(point);
   }
 
   function handlePointerUp() {
-    if (interaction?.kind === "selection-box" && selectionBox) {
-      const box = normalizeSelectionBox(selectionBox);
+    cancelScheduledFrame();
 
-      const hits = shapes
-        .filter((shape) => {
-          const bounds = getShapeBounds(shape);
-
-          if (box.leftToRight) {
-            return isBoundsInside(bounds, box);
-          }
-
-          return boundsIntersect(bounds, box);
-        })
-        .map((shape) => shape.id);
-
-      setSelectedIds(hits);
-      setSelectedId(hits.length === 1 ? hits[0] : null);
-      setSelectionBox(null);
-      setInteraction(null);
-
-      if (hits.length) {
-        setStatus(`Vybráno objektů: ${hits.length}`);
-      } else {
-        setStatus("Žádný objekt nevybrán.");
-      }
+    if (draft) {
+      commitDraft();
       return;
     }
 
-    if (interaction?.kind === "move-preview-group") return;
-    if (interaction?.kind === "line-handle") return;
-    if (interaction?.kind === "polyline-handle") return;
-    if (interaction?.kind === "shared-node") return;
-
-    setSnapTarget(null);
+    if (interaction) {
+      if (JSON.stringify(interaction.startShapes) !== JSON.stringify(shapes)) {
+        pushHistory(interaction.startShapes);
+      }
+      setInteraction(null);
+    }
   }
 
   function handleDoubleClick() {
@@ -461,7 +182,5 @@ export function createPointerHandlers(
     handlePointerMove,
     handlePointerUp,
     handleDoubleClick,
-    confirmCurrentInteraction,
-    cancelCurrentInteraction,
   };
 }

@@ -24,7 +24,6 @@ export default function CanvasView() {
 
   const isMiddlePanningRef = useRef(false);
   const middlePanStartRef = useRef(null);
-  const animationFrameRef = useRef(null);
 
   function clampViewport(next) {
     const width = Math.max(MIN_VIEW_W, Math.min(MAX_VIEW_W, next.width));
@@ -87,15 +86,10 @@ export default function CanvasView() {
       });
 
       rafId = requestAnimationFrame(animate);
-      animationFrameRef.current = rafId;
     }
 
     rafId = requestAnimationFrame(animate);
-    animationFrameRef.current = rafId;
-
-    return () => {
-      cancelAnimationFrame(rafId);
-    };
+    return () => cancelAnimationFrame(rafId);
   }, [viewport, setRenderViewport]);
 
   function onWheel(e) {
@@ -224,6 +218,7 @@ export default function CanvasView() {
           style={{
             ...styles.canvasWrap,
             cursor: isMiddlePanningRef.current ? "grabbing" : "default",
+            overflow: "hidden",
           }}
           onWheel={onWheel}
         >
