@@ -22,6 +22,7 @@ export function createPointerHandlers(
     tool,
     shapes,
     draft,
+    polylineDraft,
     selectionBox,
     interaction,
     setShapes,
@@ -31,6 +32,8 @@ export function createPointerHandlers(
     setSelectedId,
     setSelectedIds,
     setSelectionBox,
+    setDraft,
+    setPolylineDraft,
   } = state;
 
   const { pushHistory } = historyActions;
@@ -120,6 +123,53 @@ export function createPointerHandlers(
     pendingPoint = point;
     if (dragRafId) return;
     dragRafId = requestAnimationFrame(flushInteractionFrame);
+  }
+
+  function cancelCurrentInteraction() {
+    cancelScheduledFrame();
+
+    if (draft) {
+      setDraft(null);
+      setStatus("Kreslení zrušeno.");
+      return true;
+    }
+
+    if (polylineDraft) {
+      setPolylineDraft(null);
+      setStatus("Polyline zrušena.");
+      return true;
+    }
+
+    if (interaction?.kind === "selection-box") {
+      setSelectionBox(null);
+      setInteraction(null);
+      setStatus("Výběr zrušen.");
+      return true;
+    }
+
+    if (interaction?.startShapes) {
+      setShapes(interaction.startShapes);
+      setInteraction(null);
+      setSelectionBox(null);
+      setStatus("Akce zrušena.");
+      return true;
+    }
+
+    if (selectionBox) {
+      setSelectionBox(null);
+      setInteraction(null);
+      setStatus("Výběr zrušen.");
+      return true;
+    }
+
+    if (state.selectedId || (state.selectedIds && state.selectedIds.length)) {
+      setSelectedId(null);
+      setSelectedIds([]);
+      setStatus("Výběr zrušen.");
+      return true;
+    }
+
+    return false;
   }
 
   function handlePointerDown(evt) {
@@ -245,5 +295,6 @@ export function createPointerHandlers(
     handlePointerMove,
     handlePointerUp,
     handleDoubleClick,
+    cancelCurrentInteraction,
   };
 }

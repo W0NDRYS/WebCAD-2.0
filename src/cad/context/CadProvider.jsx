@@ -11,14 +11,6 @@ import { createPointerHandlers } from "../handlers/pointerHandlers";
 
 export function CadProvider({ children }) {
   const state = useCadState();
-
-  function focusCommandInput() {
-    requestAnimationFrame(() => {
-      state.commandInputRef.current?.focus();
-      state.commandInputRef.current?.select?.();
-    });
-  }
-
   const historyActions = createHistoryActions(state);
   const shapeActions = createShapeActions(state, historyActions);
   const drawingActions = createDrawingActions(state, shapeActions);
@@ -29,8 +21,7 @@ export function CadProvider({ children }) {
     state,
     historyActions,
     drawingActions,
-    selectionActions,
-    focusCommandInput
+    selectionActions
   );
 
   useEffect(() => {
@@ -42,34 +33,35 @@ export function CadProvider({ children }) {
 
     function onKeyDown(e) {
       const activeEl = document.activeElement;
+      const typing = isTypingTarget(activeEl);
 
       if (e.key === "Escape") {
         const canceled = pointerHandlers.cancelCurrentInteraction?.();
         if (canceled) {
           e.preventDefault();
-          return;
         }
+        return;
       }
 
-      if (!isTypingTarget(activeEl)) {
-        if (e.key === "Delete" || e.key === "Backspace") {
-          e.preventDefault();
-          shapeActions.removeSelected();
-          return;
-        }
+      if (typing) return;
 
-        if (e.key === "Enter") {
-          const confirmed = pointerHandlers.confirmCurrentInteraction?.();
-          if (confirmed) {
-            e.preventDefault();
-          }
-        }
+      if (e.code === "Space") {
+        e.preventDefault();
+        state.setTool("select");
+        state.setStatus("Nástroj: Výběr");
+        return;
+      }
+
+      if (e.key === "m" || e.key === "M") {
+        e.preventDefault();
+        state.setTool("pan");
+        state.setStatus("Nástroj: Move");
       }
     }
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [shapeActions, pointerHandlers]);
+  }, [state, pointerHandlers]);
 
   const value = {
     ...state,
@@ -80,7 +72,6 @@ export function CadProvider({ children }) {
     ...exportActions,
     ...inputActions,
     ...pointerHandlers,
-    focusCommandInput,
   };
 
   return <CadContext.Provider value={value}>{children}</CadContext.Provider>;

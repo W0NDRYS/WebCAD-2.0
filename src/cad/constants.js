@@ -16,7 +16,7 @@ export const TOOLBAR = [
   { key: "circle", label: "Kružnice" },
   { key: "polyline", label: "Polyline" },
   { key: "text", label: "Text" },
-  { key: "pan", label: "Přesun" },
+  { key: "pan", label: "Move" },
 ];
 
 export const styles = {
@@ -30,7 +30,6 @@ export const styles = {
     alignItems: "center",
     gap: "10px",
     padding: "10px 8px",
-    overflow: "hidden",
   },
   railButton: {
     width: "44px",
@@ -42,15 +41,11 @@ export const styles = {
     alignItems: "center",
     justifyContent: "center",
     cursor: "pointer",
-    flex: "0 0 auto",
   },
   canvasArea: {
     gridColumn: "2 / 3",
     gridRow: "1 / 2",
-    padding: "12px",
-    minWidth: 0,
-    minHeight: 0,
-    overflow: "hidden",
+    padding: "16px",
   },
   card: {
     background: "#ffffff",
@@ -59,18 +54,14 @@ export const styles = {
     boxShadow: "0 1px 2px rgba(15,23,42,0.06)",
     overflow: "hidden",
     height: "100%",
-    display: "grid",
-    gridTemplateRows: "auto 1fr",
-    minHeight: 0,
   },
   cardHeader: {
-    padding: "14px 18px 10px",
+    padding: "18px 20px 8px",
     borderBottom: "1px solid #f1f5f9",
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
     gap: "12px",
-    flex: "0 0 auto",
   },
   title: {
     margin: 0,
@@ -84,17 +75,14 @@ export const styles = {
     color: "#64748b",
     fontSize: "14px",
     fontWeight: 500,
-    flex: "0 0 auto",
   },
   canvasWrap: {
-    margin: "12px",
+    margin: 16,
+    overflow: "auto",
     border: "1px solid #e2e8f0",
     borderRadius: "18px",
     background: "#ffffff",
-    minHeight: 0,
-    height: "100%",
-    overflow: "hidden",
-    display: "flex",
+    height: "calc(100vh - 96px)",
   },
   statusBar: {
     gridColumn: "2 / 3",
@@ -108,7 +96,6 @@ export const styles = {
     padding: "0 16px",
     fontSize: "13px",
     color: "#334155",
-    minWidth: 0,
   },
   statusInfo: {
     display: "flex",
@@ -116,13 +103,11 @@ export const styles = {
     gap: "18px",
     overflow: "hidden",
     whiteSpace: "nowrap",
-    minWidth: 0,
   },
   statusCommand: {
     display: "flex",
     alignItems: "center",
     gap: "8px",
-    flex: "0 0 auto",
   },
   input: {
     minHeight: "32px",
