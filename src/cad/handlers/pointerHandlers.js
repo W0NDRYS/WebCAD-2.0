@@ -118,7 +118,6 @@ export function createPointerHandlers(
 
   function scheduleInteractionFrame(point) {
     pendingPoint = point;
-
     if (dragRafId) return;
     dragRafId = requestAnimationFrame(flushInteractionFrame);
   }
@@ -130,12 +129,12 @@ export function createPointerHandlers(
     if (tool === "select") {
       if (tryStartHandleEdit(point)) return;
 
-      const selected = selectAtPoint(point);
-      if (selected) return;
+      const hit = selectAtPoint(point);
+      if (hit) return;
 
       setSelectedId(null);
-      setSelectedIds?.([]);
-      setSelectionBox?.({
+      setSelectedIds([]);
+      setSelectionBox({
         x1: point.x,
         y1: point.y,
         x2: point.x,
@@ -164,7 +163,18 @@ export function createPointerHandlers(
       return;
     }
 
-    beginShape(point);
+    if (tool === "line" || tool === "rect" || tool === "circle") {
+      if (!draft) {
+        beginShape(point);
+      } else {
+        updateDraft(point);
+
+        requestAnimationFrame(() => {
+          commitDraft();
+        });
+      }
+      return;
+    }
   }
 
   function handlePointerMove(evt) {
@@ -179,7 +189,7 @@ export function createPointerHandlers(
     if (!interaction) return;
 
     if (interaction.kind === "selection-box") {
-      setSelectionBox?.({
+      setSelectionBox({
         x1: interaction.startPoint.x,
         y1: interaction.startPoint.y,
         x2: point.x,
@@ -194,11 +204,6 @@ export function createPointerHandlers(
   function handlePointerUp() {
     cancelScheduledFrame();
 
-    if (draft) {
-      commitDraft();
-      return;
-    }
-
     if (interaction?.kind === "selection-box" && selectionBox) {
       const box = normalizeSelectionBox(selectionBox);
 
@@ -206,9 +211,9 @@ export function createPointerHandlers(
         .filter((shape) => isShapeInSelection(shape, box, box.leftToRight))
         .map((shape) => shape.id);
 
-      setSelectedIds?.(hits);
+      setSelectedIds(hits);
       setSelectedId(hits.length === 1 ? hits[0] : null);
-      setSelectionBox?.(null);
+      setSelectionBox(null);
       setInteraction(null);
 
       if (hits.length) {
@@ -216,6 +221,10 @@ export function createPointerHandlers(
       } else {
         setStatus("Žádný objekt nevybrán.");
       }
+      return;
+    }
+
+    if (draft) {
       return;
     }
 
