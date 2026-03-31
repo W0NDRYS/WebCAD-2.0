@@ -1,4 +1,8 @@
 import { SVG_H, SVG_W } from "../constants";
+import {
+  isShapeInSelection,
+  normalizeSelectionBox,
+} from "../utils/geometry";
 import { moveShape, updateShapeById } from "../utils/shapeMutations";
 import { snap } from "../utils/units";
 
@@ -18,11 +22,15 @@ export function createPointerHandlers(
     tool,
     shapes,
     draft,
-    setShapes,
+    selectionBox,
     interaction,
+    setShapes,
     setInteraction,
     setPointer,
     setStatus,
+    setSelectedId,
+    setSelectedIds,
+    setSelectionBox,
   } = state;
 
   const { pushHistory } = historyActions;
@@ -121,7 +129,23 @@ export function createPointerHandlers(
 
     if (tool === "select") {
       if (tryStartHandleEdit(point)) return;
-      selectAtPoint(point);
+
+      const selected = selectAtPoint(point);
+      if (selected) return;
+
+      setSelectedId(null);
+      setSelectedIds?.([]);
+      setSelectionBox?.({
+        x1: point.x,
+        y1: point.y,
+        x2: point.x,
+        y2: point.y,
+      });
+      setInteraction({
+        kind: "selection-box",
+        startPoint: point,
+      });
+      setStatus("Táhni výběr.");
       return;
     }
 
@@ -154,6 +178,16 @@ export function createPointerHandlers(
 
     if (!interaction) return;
 
+    if (interaction.kind === "selection-box") {
+      setSelectionBox?.({
+        x1: interaction.startPoint.x,
+        y1: interaction.startPoint.y,
+        x2: point.x,
+        y2: point.y,
+      });
+      return;
+    }
+
     scheduleInteractionFrame(point);
   }
 
@@ -162,6 +196,26 @@ export function createPointerHandlers(
 
     if (draft) {
       commitDraft();
+      return;
+    }
+
+    if (interaction?.kind === "selection-box" && selectionBox) {
+      const box = normalizeSelectionBox(selectionBox);
+
+      const hits = shapes
+        .filter((shape) => isShapeInSelection(shape, box, box.leftToRight))
+        .map((shape) => shape.id);
+
+      setSelectedIds?.(hits);
+      setSelectedId(hits.length === 1 ? hits[0] : null);
+      setSelectionBox?.(null);
+      setInteraction(null);
+
+      if (hits.length) {
+        setStatus(`Vybráno objektů: ${hits.length}`);
+      } else {
+        setStatus("Žádný objekt nevybrán.");
+      }
       return;
     }
 
