@@ -198,8 +198,12 @@ export function createPointerHandlers(
       return;
     }
 
-    if (tool === "pan") {
-      setStatus("Posun plátna zatím není implementovaný.");
+    if (tool === "hand") {
+      return;
+    }
+
+    if (tool === "move") {
+      setStatus("Vyber objekt a přesuň ho.");
       return;
     }
 

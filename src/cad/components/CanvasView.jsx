@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from "react";
 import { Grid3X3 } from "lucide-react";
-import { styles, SVG_H, SVG_W } from "../constants";
+import { styles, SVG_H, SVG_W, TOOLBAR } from "../constants";
 import { useCad } from "../context/CadContext";
 import DrawingSvg from "./DrawingSvg";
 
@@ -12,6 +12,7 @@ const VIEW_LERP = 0.22;
 export default function CanvasView() {
   const {
     svgRef,
+    tool,
     viewport,
     setViewport,
     renderViewport,
@@ -22,8 +23,8 @@ export default function CanvasView() {
     handleDoubleClick,
   } = useCad();
 
-  const isMiddlePanningRef = useRef(false);
-  const middlePanStartRef = useRef(null);
+  const isViewPanningRef = useRef(false);
+  const panStartRef = useRef(null);
 
   function clampViewport(next) {
     const width = Math.max(MIN_VIEW_W, Math.min(MAX_VIEW_W, next.width));
@@ -115,25 +116,35 @@ export default function CanvasView() {
     });
   }
 
+  function startViewPan(e) {
+    const svg = getSvgElement();
+    if (!svg) return false;
+
+    const rect = svg.getBoundingClientRect();
+    if (!rect.width || !rect.height) return false;
+
+    isViewPanningRef.current = true;
+    panStartRef.current = {
+      clientX: e.clientX,
+      clientY: e.clientY,
+      viewportX: viewport.x,
+      viewportY: viewport.y,
+      worldPerPixelX: viewport.width / rect.width,
+      worldPerPixelY: viewport.height / rect.height,
+    };
+    return true;
+  }
+
   function onMouseDown(e) {
     if (e.button === 1) {
       e.preventDefault();
+      startViewPan(e);
+      return;
+    }
 
-      const svg = getSvgElement();
-      if (!svg) return;
-
-      const rect = svg.getBoundingClientRect();
-      if (!rect.width || !rect.height) return;
-
-      isMiddlePanningRef.current = true;
-      middlePanStartRef.current = {
-        clientX: e.clientX,
-        clientY: e.clientY,
-        viewportX: viewport.x,
-        viewportY: viewport.y,
-        worldPerPixelX: viewport.width / rect.width,
-        worldPerPixelY: viewport.height / rect.height,
-      };
+    if (tool === "hand" && e.button === 0) {
+      e.preventDefault();
+      startViewPan(e);
       return;
     }
 
@@ -141,10 +152,10 @@ export default function CanvasView() {
   }
 
   function onMouseMove(e) {
-    if (isMiddlePanningRef.current && middlePanStartRef.current) {
+    if (isViewPanningRef.current && panStartRef.current) {
       e.preventDefault();
 
-      const start = middlePanStartRef.current;
+      const start = panStartRef.current;
       const dxPx = e.clientX - start.clientX;
       const dyPx = e.clientY - start.clientY;
 
@@ -159,16 +170,18 @@ export default function CanvasView() {
     handlePointerMove(e);
   }
 
-  function stopMiddlePan() {
-    isMiddlePanningRef.current = false;
-    middlePanStartRef.current = null;
+  function stopViewPan() {
+    isViewPanningRef.current = false;
+    panStartRef.current = null;
   }
 
   function onMouseUp(e) {
-    if (e.button === 1 && isMiddlePanningRef.current) {
-      e.preventDefault();
-      stopMiddlePan();
-      return;
+    if (isViewPanningRef.current) {
+      if (e.button === 1 || (tool === "hand" && e.button === 0)) {
+        e.preventDefault();
+        stopViewPan();
+        return;
+      }
     }
 
     handlePointerUp(e);
@@ -183,6 +196,9 @@ export default function CanvasView() {
     });
   }
 
+  const toolLabel =
+    TOOLBAR.find((item) => item.key === tool)?.label || tool;
+
   return (
     <div style={styles.canvasArea}>
       <div style={styles.card}>
@@ -195,6 +211,10 @@ export default function CanvasView() {
               <span>
                 {Math.round(renderViewport.width)} × {Math.round(renderViewport.height)} view
               </span>
+            </div>
+
+            <div style={styles.toolbarMeta}>
+              <span>{toolLabel}</span>
             </div>
 
             <button
@@ -217,7 +237,11 @@ export default function CanvasView() {
         <div
           style={{
             ...styles.canvasWrap,
-            cursor: isMiddlePanningRef.current ? "grabbing" : "default",
+            cursor: isViewPanningRef.current
+              ? "grabbing"
+              : tool === "hand"
+              ? "grab"
+              : "default",
             overflow: "hidden",
           }}
           onWheel={onWheel}
@@ -237,7 +261,7 @@ export default function CanvasView() {
             onMouseMove={onMouseMove}
             onMouseUp={onMouseUp}
             onMouseLeave={() => {
-              stopMiddlePan();
+              stopViewPan();
               handlePointerUp();
             }}
             onDoubleClick={handleDoubleClick}

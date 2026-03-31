@@ -5,6 +5,7 @@ import {
   FileImage,
   FileJson,
   FileType,
+  Hand,
   Minus,
   MousePointer2,
   Move,
@@ -25,7 +26,8 @@ const toolIcons = {
   circle: Circle,
   polyline: PenTool,
   text: Type,
-  pan: Move,
+  move: Move,
+  hand: Hand,
 };
 
 const actions = [

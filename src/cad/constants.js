@@ -16,7 +16,8 @@ export const TOOLBAR = [
   { key: "circle", label: "Kružnice" },
   { key: "polyline", label: "Polyline" },
   { key: "text", label: "Text" },
-  { key: "pan", label: "Move" },
+  { key: "move", label: "Move" },
+  { key: "hand", label: "Hand" },
 ];
 
 export const styles = {

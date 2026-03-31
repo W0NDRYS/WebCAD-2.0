@@ -8,6 +8,7 @@ import {
 export function createSelectionActions(state) {
   const {
     selectedShape,
+    selectedIds,
     shapes,
     setSelectedId,
     setSelectedIds,
@@ -16,7 +17,12 @@ export function createSelectionActions(state) {
   } = state;
 
   function tryStartHandleEdit(point) {
-    if (selectedShape?.type === "line") {
+    // body upravujeme jen když je vybraný právě jeden objekt
+    if (!selectedShape || (selectedIds && selectedIds.length > 1)) {
+      return false;
+    }
+
+    if (selectedShape.type === "line") {
       const handle = getLineHandle(selectedShape, point.x, point.y);
       if (handle) {
         setInteraction({
@@ -30,7 +36,7 @@ export function createSelectionActions(state) {
       }
     }
 
-    if (selectedShape?.type === "polyline") {
+    if (selectedShape.type === "polyline") {
       const handleIndex = getPolylineHandle(selectedShape, point.x, point.y);
       if (handleIndex !== null) {
         setInteraction({
@@ -48,7 +54,9 @@ export function createSelectionActions(state) {
   }
 
   function selectAtPoint(point) {
-    const hit = [...shapes].reverse().find((s) => hitTest(s, point.x, point.y));
+    const hit = [...shapes].reverse().find((shape) =>
+      hitTest(shape, point.x, point.y)
+    );
 
     setSelectedId(hit?.id || null);
     setSelectedIds(hit ? [hit.id] : []);
