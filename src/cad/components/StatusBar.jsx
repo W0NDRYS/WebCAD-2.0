@@ -1,6 +1,7 @@
 import React from "react";
-import { styles, TOOLBAR } from "../constants";
+import { styles } from "../constants";
 import { useCad } from "../context/CadContext";
+import { getSnapLabel } from "../utils/geometry";
 import { mmToDisplay } from "../utils/units";
 
 export default function StatusBar() {
@@ -13,22 +14,25 @@ export default function StatusBar() {
     commandValue,
     setCommandValue,
     applyCommandValue,
+    commandInputRef,
+    snapTarget,
   } = useCad();
-
-  const toolLabel =
-    TOOLBAR.find((item) => item.key === tool)?.label || tool;
 
   const metricText = (() => {
     if (!liveMetric) return "";
+
     if (liveMetric.kind === "length") {
       return `Délka: ${mmToDisplay(liveMetric.valueMm, units)} ${units}`;
     }
+
     if (liveMetric.kind === "radius") {
       return `Poloměr: ${mmToDisplay(liveMetric.valueMm, units)} ${units} | Průměr: ${mmToDisplay(liveMetric.diameterMm, units)} ${units}`;
     }
+
     if (liveMetric.kind === "rect") {
       return `Šířka: ${mmToDisplay(liveMetric.widthMm, units)} ${units} | Výška: ${mmToDisplay(liveMetric.heightMm, units)} ${units}`;
     }
+
     return "";
   })();
 
@@ -42,30 +46,71 @@ export default function StatusBar() {
   return (
     <div style={styles.statusBar}>
       <div style={styles.statusInfo}>
-        <span><strong>Stav:</strong> {status}</span>
-        <span><strong>Nástroj:</strong> {toolLabel}</span>
+        <span>
+          <strong>Stav:</strong> {status}
+        </span>
+
+        <span>
+          <strong>Nástroj:</strong> {tool}
+        </span>
+
         <span>
           <strong>Souřadnice:</strong> X {mmToDisplay(pointer.x, units)} / Y{" "}
           {mmToDisplay(pointer.y, units)} {units}
         </span>
-        {metricText ? <span><strong>{metricText}</strong></span> : null}
+
+        {metricText ? (
+          <span>
+            <strong>{metricText}</strong>
+          </span>
+        ) : null}
+
+        {snapTarget ? (
+          <span>
+            <strong>Snap:</strong> {getSnapLabel(snapTarget.role)}
+          </span>
+        ) : null}
+
+        <span>
+          <strong>Alt:</strong> dočasně vypne snap
+        </span>
       </div>
 
-      <div style={styles.statusCommand}>
-        <input
-          type="number"
-          step="0.001"
-          value={commandValue}
-          onChange={(e) => setCommandValue(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") applyCommandValue();
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <a
+          href="https://buymeacoffee.com/TVUJ_LINK"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            fontSize: 12,
+            opacity: 0.7,
+            textDecoration: "none",
+            color: "inherit",
+            whiteSpace: "nowrap",
           }}
-          placeholder={placeholder}
-          style={{ ...styles.input, width: 180 }}
-        />
-        <button onClick={applyCommandValue} style={styles.primaryButton}>
-          Použít
-        </button>
+          title="Podpoř vývoj aplikace"
+        >
+          ☕ Buy me a coffee
+        </a>
+
+        <div style={styles.statusCommand}>
+          <input
+            ref={commandInputRef}
+            type="number"
+            step="0.001"
+            value={commandValue}
+            onChange={(e) => setCommandValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") applyCommandValue();
+            }}
+            placeholder={placeholder}
+            style={{ ...styles.input, width: 140 }}
+          />
+
+          <button onClick={applyCommandValue} style={styles.primaryButton}>
+            Použít
+          </button>
+        </div>
       </div>
     </div>
   );
